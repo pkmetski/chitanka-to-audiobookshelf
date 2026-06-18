@@ -1,4 +1,4 @@
-import { writeFile, unlink, mkdtemp } from 'fs/promises'
+import { writeFile, unlink, mkdtemp, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { uploadToAbs, setAbsCoverFromUrl, findRecentLibraryItem } from '@/lib/abs/client'
@@ -37,6 +37,7 @@ export async function POST(req: Request) {
       }
 
       let tempPath: string | null = null
+      let dir: string | null = null
 
       try {
         // Step 1: Download file
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
         const ext = detail.format === 'epub' ? '.epub' : '.mp3'
         const filename = `${detail.title.replace(/[^a-z0-9]/gi, '_')}${ext}`
 
-        const dir = await mkdtemp(join(tmpdir(), 'chitanka-'))
+        dir = await mkdtemp(join(tmpdir(), 'chitanka-'))
         tempPath = join(dir, filename)
         await writeFile(tempPath, Buffer.from(buffer))
 
@@ -80,27 +81,31 @@ export async function POST(req: Request) {
         // Step 3: Upload cover
         if (detail.coverUrl) {
           send({ status: 'cover', message: 'Setting cover art…' })
+          try {
+            // ABS POST /api/upload returns no JSON body, so uploadResult.id may be ''.
+            // Discover the item ID by querying the most recently added items and matching by title.
+            let itemId = uploadResult.id
+            if (!itemId) {
+              const found = await findRecentLibraryItem(absUrl, absToken, libraryId, detail.title)
+              itemId = found?.id ?? ''
+            }
 
-          // ABS POST /api/upload returns no JSON body, so uploadResult.id may be ''.
-          // Discover the item ID by querying the most recently added items and matching by title.
-          let itemId = uploadResult.id
-          if (!itemId) {
-            const found = await findRecentLibraryItem(absUrl, absToken, libraryId, detail.title)
-            itemId = found?.id ?? ''
+            if (itemId) {
+              await setAbsCoverFromUrl(absUrl, absToken, itemId, detail.coverUrl)
+            }
+            // If we still have no itemId, skip cover silently — item was uploaded successfully.
+          } catch (coverErr) {
+            console.error('Cover upload failed (non-fatal):', coverErr)
+            // continue to done
           }
-
-          if (itemId) {
-            await setAbsCoverFromUrl(absUrl, absToken, itemId, detail.coverUrl)
-          }
-          // If we still have no itemId, skip cover silently — item was uploaded successfully.
         }
 
         send({ status: 'done', message: 'Done! Item added to Audiobookshelf.' })
       } catch (err) {
         send({ status: 'error', message: 'Upload failed', error: String(err) })
       } finally {
-        if (tempPath) {
-          unlink(tempPath).catch(() => {}) // best-effort cleanup
+        if (dir) {
+          rm(dir, { recursive: true, force: true }).catch(() => {}) // best-effort cleanup
         }
         controller.close()
       }
