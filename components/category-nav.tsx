@@ -13,6 +13,7 @@ export function CategoryNav({ site, onNavigate }: Props) {
   const [loadingGenres, setLoadingGenres] = useState(false)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (site !== 'chitanka') { setGenres([]); return }
     setLoadingGenres(true)
     fetch(`/api/scrape/categories?site=chitanka`)

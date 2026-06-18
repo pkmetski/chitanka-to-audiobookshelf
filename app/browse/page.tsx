@@ -54,8 +54,8 @@ export default function BrowsePage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadResults(`/api/scrape/browse?site=chitanka&path=/new`)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function handleSiteChange(next: Site) {
