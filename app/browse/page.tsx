@@ -6,6 +6,7 @@ import { SearchBar } from '@/components/search-bar'
 import { CategoryNav } from '@/components/category-nav'
 import { ResultsGrid } from '@/components/results-grid'
 import type { BookSummary, ListingResult, Site } from '@/lib/scraper/types'
+import { DetailPanel } from '@/components/detail-panel'
 
 export default function BrowsePage() {
   const [site, setSite] = useState<Site>('chitanka')
@@ -61,10 +62,15 @@ export default function BrowsePage() {
         </div>
       </div>
 
-      {/* Detail panel placeholder — replaced in Task 10 */}
       {selectedBook && (
-        <aside className="w-80 border-l p-4 overflow-y-auto shrink-0">
-          <pre className="text-xs">{JSON.stringify(selectedBook, null, 2)}</pre>
+        <aside className="w-80 border-l overflow-y-auto shrink-0">
+          <DetailPanel
+            book={selectedBook}
+            onUpload={(detail, libraryId) => {
+              // upload handled in Task 12
+              console.log('Upload:', detail, libraryId)
+            }}
+          />
         </aside>
       )}
     </div>
