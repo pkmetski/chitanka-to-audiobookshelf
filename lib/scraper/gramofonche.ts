@@ -168,7 +168,9 @@ export function parseDetailPage(html: string, pageUrl: string): GramofoncheDetai
 }
 
 export async function searchGramofonche(query: string): Promise<ListingResult> {
-  const html = await fetchHtml(`${BASE}/search?q=${encodeURIComponent(query)}`)
+  // Gramofonche /search endpoint returns 404; fall back to browsing /prikazki/
+  // The query parameter is accepted but ignored — UI should communicate this limitation
+  const html = await fetchHtml(`${BASE}/prikazki/`)
   return parseSearchResults(html)
 }
 

@@ -97,9 +97,12 @@ export async function findRecentLibraryItem(
   if (!res.ok) return null
   const data = await res.json()
   const items: AbsLibraryItem[] = data.results ?? data.items ?? []
+  const now = Math.floor(Date.now() / 1000)
   // Normalise for case-insensitive comparison
   const normalised = title.trim().toLowerCase()
-  return items.find(item => item.media?.metadata?.title?.trim().toLowerCase() === normalised) ?? null
+  return items
+    .filter(item => now - (item.addedAt ?? 0) < 60)
+    .find(item => item.media?.metadata?.title?.trim().toLowerCase() === normalised) ?? null
 }
 
 /**

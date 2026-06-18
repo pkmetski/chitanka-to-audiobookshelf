@@ -16,6 +16,8 @@ export function useSettings() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
+      // Intentional: reads localStorage once on mount to hydrate state from persisted settings
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (raw) setSettings(JSON.parse(raw))
     } catch {
       // ignore parse errors

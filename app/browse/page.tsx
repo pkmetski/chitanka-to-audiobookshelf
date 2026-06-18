@@ -12,15 +12,25 @@ export default function BrowsePage() {
   const [site, setSite] = useState<Site>('chitanka')
   const [results, setResults] = useState<BookSummary[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [selectedBook, setSelectedBook] = useState<BookSummary | null>(null)
 
   async function loadResults(url: string) {
     setLoading(true)
+    setError(null)
     setSelectedBook(null)
     try {
       const res = await fetch(url)
-      const data: ListingResult = await res.json()
-      setResults(data.items)
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error ?? 'Request failed')
+        setResults([])
+        return
+      }
+      setResults(data.items ?? [])
+    } catch (err) {
+      setError(String(err))
+      setResults([])
     } finally {
       setLoading(false)
     }
@@ -53,6 +63,9 @@ export default function BrowsePage() {
           <SourceToggle active={site} onChange={handleSiteChange} />
           <SearchBar onSearch={handleSearch} />
         </div>
+        {error && (
+          <p className="text-sm text-destructive px-4">{error}</p>
+        )}
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>

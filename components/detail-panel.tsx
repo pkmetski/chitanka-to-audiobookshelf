@@ -40,7 +40,10 @@ export function DetailPanel({ book }: Props) {
   const [language, setLanguage] = useState('')
 
   useEffect(() => {
+    // Intentional: synchronously reset loading/error state before initiating async data fetch
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
+    // Intentional: clear previous error before a new fetch attempt
     setError(null)
 
     Promise.all([
@@ -63,6 +66,8 @@ export function DetailPanel({ book }: Props) {
       })
       .catch((err) => setError(String(err)))
       .finally(() => setLoading(false))
+  // absHeaders is a stable factory from useSettings and does not change identity; re-fetching on its change would be incorrect
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book.url])
 
   if (loading) return <p className="text-sm text-muted-foreground p-4">Loading…</p>

@@ -50,7 +50,11 @@ export async function POST(req: Request) {
 
         const buffer = await fileRes.arrayBuffer()
         const ext = detail.format === 'epub' ? '.epub' : '.mp3'
-        const filename = `${detail.title.replace(/[^a-z0-9]/gi, '_')}${ext}`
+        const slug = detail.title
+          .replace(/[^\p{L}\p{N}]+/gu, '_')
+          .replace(/^_+|_+$/g, '')
+          .slice(0, 80) || 'book'
+        const filename = `${slug}${ext}`
 
         dir = await mkdtemp(join(tmpdir(), 'chitanka-'))
         tempPath = join(dir, filename)
