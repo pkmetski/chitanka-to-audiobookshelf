@@ -5,7 +5,7 @@ vi.mock('fs/promises', () => ({
   readFile: vi.fn(() => Promise.resolve(Buffer.from('fake-file-content'))),
 }))
 
-import { fetchAbsLibraries, uploadToAbs, setAbsCoverFromUrl } from '@/lib/abs/client'
+import { fetchAbsLibraries, uploadToAbs, setAbsCoverFromUrl, findNewLibraryItem } from '@/lib/abs/client'
 
 const ABS_URL = 'http://localhost:13378'
 const TOKEN = 'test-token'
@@ -46,15 +46,53 @@ describe('fetchAbsLibraries', () => {
 })
 
 describe('uploadToAbs', () => {
-  it('returns the new item id', async () => {
+  it('resolves with empty id on success', async () => {
+    // First fetch: fetchAbsLibraries (called internally to get folderId)
     vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ id: 'item-abc' }), { status: 200 })
+      new Response(
+        JSON.stringify({ libraries: [{ id: 'lib1', name: 'Books', mediaType: 'book', folders: [{ id: 'folder1', fullPath: '/books' }] }] }),
+        { status: 200 }
+      )
     )
-    const result = await uploadToAbs(ABS_URL, TOKEN, 'lib1', 'folder1', '/tmp/book.epub', 'book.epub', {
+    // Second fetch: the actual upload
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('OK', { status: 200 }))
+
+    const result = await uploadToAbs(ABS_URL, TOKEN, 'lib1', '/tmp/book.epub', 'book.epub', {
       title: 'Test Book',
       authorName: 'Test Author',
     })
-    expect(result.id).toBe('item-abc')
+    expect(result.id).toBe('')
+  })
+})
+
+describe('findNewLibraryItem', () => {
+  it('returns item whose addedAt is after the given timestamp', async () => {
+    const now = Date.now()
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ results: [
+          { id: 'new-item', addedAt: now + 1000, media: { metadata: { title: 'New Book' } } },
+          { id: 'old-item', addedAt: now - 5000, media: { metadata: { title: 'Old Book' } } },
+        ] }),
+        { status: 200 }
+      )
+    )
+    const item = await findNewLibraryItem('http://localhost:13378', 'tok', 'lib1', now)
+    expect(item?.id).toBe('new-item')
+  })
+
+  it('returns null when no items are newer than the timestamp', async () => {
+    const now = Date.now()
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ results: [
+          { id: 'old-item', addedAt: now - 5000, media: { metadata: { title: 'Old Book' } } },
+        ] }),
+        { status: 200 }
+      )
+    )
+    const item = await findNewLibraryItem('http://localhost:13378', 'tok', 'lib1', now)
+    expect(item).toBeNull()
   })
 })
 

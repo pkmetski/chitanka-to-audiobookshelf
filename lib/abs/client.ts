@@ -23,29 +23,27 @@ export async function fetchAbsLibraries(absUrl: string, token: string): Promise<
 }
 
 /**
- * Upload an audio file to Audiobookshelf via POST /api/upload.
+ * Upload a file to Audiobookshelf via POST /api/upload.
  *
- * ABS API field names (from source code research):
- *   - library  : libraryId
- *   - folder   : folderId (ABS requires a folder within the library)
- *   - title    : book title
- *   - author   : author name (ABS uses "author", not "authorName")
- *   - series   : series name
+ * ABS ignores the form metadata fields (title, author, etc.) and reads them
+ * from the file itself (ID3 tags for MP3, OPF for EPUB). A subsequent PATCH
+ * to /api/items/:id/media is required to set correct metadata.
  *
- * Note: ABS /api/upload returns HTTP 200 with no JSON body on success.
- * If the server is configured to return an item ID (some versions do), we
- * parse it; otherwise we return a placeholder that callers should treat as
- * "upload accepted but ID unknown until the library is re-scanned."
+ * ABS /api/upload returns HTTP 200 with plain text "OK" — no item ID.
  */
 export async function uploadToAbs(
   absUrl: string,
   token: string,
   libraryId: string,
-  folderId: string,
   filePath: string,
   filename: string,
   metadata: AbsUploadMetadata
 ): Promise<AbsUploadResult> {
+  const libraries = await fetchAbsLibraries(absUrl, token)
+  const library = libraries.find(l => l.id === libraryId)
+  const folderId = library?.folders?.[0]?.id
+  if (!folderId) throw new Error(`No folder found for library ${libraryId}`)
+
   const buffer = await readFile(filePath)
   const mimeType = filename.endsWith('.epub') ? 'application/epub+zip' : 'audio/mpeg'
   const blob = new Blob([buffer], { type: mimeType })
@@ -56,34 +54,15 @@ export async function uploadToAbs(
   form.append('folder', folderId)
   form.append('title', metadata.title)
   form.append('author', metadata.authorName)
-  if (metadata.narratorName) form.append('narrator', metadata.narratorName)
-  if (metadata.description) form.append('description', metadata.description)
-  if (metadata.publishedYear) form.append('publishedYear', metadata.publishedYear)
-  if (metadata.language) form.append('language', metadata.language)
-  if (metadata.genres?.length) form.append('genres', metadata.genres.join(','))
-  if (metadata.series?.name) form.append('series', metadata.series.name)
 
   const res = await fetch(`${normalizeUrl(absUrl)}/api/upload`, {
     method: 'POST',
-    headers: authHeaders(token), // let fetch set Content-Type + boundary automatically
+    headers: authHeaders(token),
     body: form,
   })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`ABS upload failed ${res.status}: ${text}`)
-  }
-
-  // ABS /api/upload returns sendStatus(200) — no JSON body in the standard implementation.
-  // Some deployments or future versions may return { id } or { libraryItemId }.
-  // We try to parse JSON; if the body is empty or non-JSON we return a sentinel value.
-  const text = await res.text()
-  if (text) {
-    try {
-      const data = JSON.parse(text)
-      return { id: data.id ?? data.libraryItemId ?? data.itemId ?? '' }
-    } catch {
-      // fall through
-    }
   }
   return { id: '' }
 }
@@ -92,6 +71,8 @@ export async function uploadToAbs(
  * Find the first library item whose addedAt timestamp (ms) is after the given
  * upload-start timestamp. Used to recover the item ID after POST /api/upload,
  * which returns no JSON body.
+ *
+ * ABS 2.35.1 returns addedAt in milliseconds.
  */
 export async function findNewLibraryItem(
   absUrl: string,
@@ -106,12 +87,7 @@ export async function findNewLibraryItem(
   if (!res.ok) return null
   const data = await res.json()
   const items: AbsLibraryItem[] = data.results ?? data.items ?? []
-  return items.find(item => {
-    const t = item.addedAt ?? 0
-    // Normalize to ms — ABS may return seconds (< 1e12) or ms (>= 1e12)
-    const tMs = t < 1e12 ? t * 1000 : t
-    return tMs > afterMs
-  }) ?? null
+  return items.find(item => (item.addedAt ?? 0) > afterMs) ?? null
 }
 
 /**
@@ -152,6 +128,7 @@ export async function updateAbsItemMetadata(
     ...(metadata.publishedYear && { publishedYear: metadata.publishedYear }),
     ...(metadata.language && { language: metadata.language }),
     ...(metadata.genres?.length && { genres: metadata.genres }),
+    ...(metadata.series && { series: [{ name: metadata.series.name, sequence: metadata.series.sequence }] }),
   }
 
   const res = await fetch(`${base}/api/items/${itemId}/media`, {

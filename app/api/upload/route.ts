@@ -1,7 +1,7 @@
 import { writeFile, mkdtemp, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { uploadToAbs, setAbsCoverFromUrl, findNewLibraryItem, fetchAbsLibraries, updateAbsItemMetadata } from '@/lib/abs/client'
+import { uploadToAbs, setAbsCoverFromUrl, findNewLibraryItem, updateAbsItemMetadata } from '@/lib/abs/client'
 import { injectSeriesIntoEpub } from '@/lib/epub/series'
 import type { BookDetail } from '@/lib/scraper/types'
 import type { AbsUploadMetadata } from '@/lib/abs/types'
@@ -69,11 +69,6 @@ export async function POST(req: Request) {
         // Step 2: Upload to ABS
         send({ status: 'uploading', message: 'Uploading to Audiobookshelf…' })
 
-        const libraries = await fetchAbsLibraries(absUrl!, absToken!)
-        const library = libraries.find(l => l.id === libraryId)
-        const folderId = library?.folders?.[0]?.id
-        if (!folderId) throw new Error(`No folder found for library ${libraryId}`)
-
         const metadata: AbsUploadMetadata = {
           title: detail.title,
           authorName: detail.authors.join(', '),
@@ -85,29 +80,20 @@ export async function POST(req: Request) {
           series: 'series' in detail && detail.series ? detail.series : undefined,
         }
 
-        // Snapshot time immediately before the upload call so addedAt comparisons are tight
+        // Snapshot time immediately before upload so addedAt comparisons are tight
         const uploadStartMs = Date.now()
-        const uploadResult = await uploadToAbs(
-          absUrl,
-          absToken,
-          libraryId,
-          folderId,
-          tempPath,
-          filename,
-          metadata
-        )
+        await uploadToAbs(absUrl, absToken, libraryId, tempPath, filename, metadata)
 
-        // Step 3: Poll for the new item — ABS indexes asynchronously after upload.
-        let itemId = uploadResult.id
-        if (!itemId) {
-          for (let attempt = 0; attempt < 10 && !itemId; attempt++) {
-            await new Promise(r => setTimeout(r, 2000))
-            const found = await findNewLibraryItem(absUrl, absToken, libraryId, uploadStartMs)
-            itemId = found?.id ?? ''
-          }
+        // Step 3: ABS indexes asynchronously — poll immediately, then every 1s (up to ~10s).
+        let itemId = ''
+        for (let attempt = 0; attempt < 10 && !itemId; attempt++) {
+          if (attempt > 0) await new Promise(r => setTimeout(r, 1000))
+          const found = await findNewLibraryItem(absUrl, absToken, libraryId, uploadStartMs)
+          itemId = found?.id ?? ''
         }
 
-        // Step 4: Patch metadata once.
+        // Step 4: Patch metadata — ABS reads title/author from the file's embedded tags
+        // during scan and ignores the upload form fields, so we must override via PATCH.
         let patchStatus = 'skipped (item not found)'
         if (itemId) {
           try {
