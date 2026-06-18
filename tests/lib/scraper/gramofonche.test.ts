@@ -37,4 +37,10 @@ describe('parseDetailPage', () => {
     const detail = parseDetailPage(detailHtml, DETAIL_URL)
     expect(Array.isArray(detail.narrators)).toBe(true)
   })
+
+  it('extracts description from blockquote when no meta description', () => {
+    const detail = parseDetailPage(detailHtml, DETAIL_URL)
+    expect(detail.description).toBeTruthy()
+    expect(detail.description).toMatch(/изпълнение/)
+  })
 })

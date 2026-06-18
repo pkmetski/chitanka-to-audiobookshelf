@@ -1,5 +1,4 @@
-import { createReadStream } from 'fs'
-import FormData from 'form-data'
+import { readFile } from 'fs/promises'
 import type { AbsLibrary, AbsLibraryItem, AbsUploadMetadata, AbsUploadResult } from './types'
 
 function normalizeUrl(url: string): string {
@@ -31,7 +30,7 @@ export async function fetchAbsLibraries(absUrl: string, token: string): Promise<
  *   - folder   : folderId (ABS requires a folder within the library)
  *   - title    : book title
  *   - author   : author name (ABS uses "author", not "authorName")
- *   - series   : series name (not exposed in our metadata type)
+ *   - series   : series name
  *
  * Note: ABS /api/upload returns HTTP 200 with no JSON body on success.
  * If the server is configured to return an item ID (some versions do), we
@@ -42,26 +41,32 @@ export async function uploadToAbs(
   absUrl: string,
   token: string,
   libraryId: string,
+  folderId: string,
   filePath: string,
   filename: string,
   metadata: AbsUploadMetadata
 ): Promise<AbsUploadResult> {
+  const buffer = await readFile(filePath)
+  const mimeType = filename.endsWith('.epub') ? 'application/epub+zip' : 'audio/mpeg'
+  const blob = new Blob([buffer], { type: mimeType })
+
   const form = new FormData()
-  form.append('files', createReadStream(filePath), { filename })
+  form.append('files', blob, filename)
   form.append('library', libraryId)
-  form.append('folder', libraryId) // Use libraryId as folderId fallback; callers can override via a wrapper
+  form.append('folder', folderId)
   form.append('title', metadata.title)
-  form.append('author', metadata.authorName) // ABS uses "author" not "authorName"
+  form.append('author', metadata.authorName)
   if (metadata.narratorName) form.append('narrator', metadata.narratorName)
   if (metadata.description) form.append('description', metadata.description)
   if (metadata.publishedYear) form.append('publishedYear', metadata.publishedYear)
   if (metadata.language) form.append('language', metadata.language)
   if (metadata.genres?.length) form.append('genres', metadata.genres.join(','))
+  if (metadata.series?.name) form.append('series', metadata.series.name)
 
   const res = await fetch(`${normalizeUrl(absUrl)}/api/upload`, {
     method: 'POST',
-    headers: { ...authHeaders(token), ...form.getHeaders() },
-    body: form as unknown as BodyInit,
+    headers: authHeaders(token), // let fetch set Content-Type + boundary automatically
+    body: form,
   })
   if (!res.ok) {
     const text = await res.text()
@@ -84,19 +89,15 @@ export async function uploadToAbs(
 }
 
 /**
- * Find the most recently added item in a library that matches the given title.
- *
- * ABS API: GET /api/libraries/:id/items?limit=10&sort=addedAt&desc=1
- * Response: { results: AbsLibraryItem[], ... }
- *
- * Used to recover the item ID after an upload, since POST /api/upload returns
- * no JSON body (sendStatus(200)).
+ * Find the first library item whose addedAt timestamp (ms) is after the given
+ * upload-start timestamp. Used to recover the item ID after POST /api/upload,
+ * which returns no JSON body.
  */
-export async function findRecentLibraryItem(
+export async function findNewLibraryItem(
   absUrl: string,
   token: string,
   libraryId: string,
-  title: string
+  afterMs: number
 ): Promise<AbsLibraryItem | null> {
   const res = await fetch(
     `${normalizeUrl(absUrl)}/api/libraries/${libraryId}/items?limit=10&sort=addedAt&desc=1`,
@@ -105,12 +106,62 @@ export async function findRecentLibraryItem(
   if (!res.ok) return null
   const data = await res.json()
   const items: AbsLibraryItem[] = data.results ?? data.items ?? []
-  const now = Math.floor(Date.now() / 1000)
-  // Normalise for case-insensitive comparison
-  const normalised = title.trim().toLowerCase()
-  return items
-    .filter(item => now - (item.addedAt ?? 0) < 60)
-    .find(item => item.media?.metadata?.title?.trim().toLowerCase() === normalised) ?? null
+  return items.find(item => {
+    const t = item.addedAt ?? 0
+    // Normalize to ms — ABS may return seconds (< 1e12) or ms (>= 1e12)
+    const tMs = t < 1e12 ? t * 1000 : t
+    return tMs > afterMs
+  }) ?? null
+}
+
+/**
+ * Trigger a library scan so ABS indexes freshly uploaded files.
+ * ABS API: POST /api/libraries/:id/scan — returns immediately, scan runs in background.
+ */
+export async function scanAbsLibrary(
+  absUrl: string,
+  token: string,
+  libraryId: string
+): Promise<void> {
+  await fetch(`${normalizeUrl(absUrl)}/api/libraries/${libraryId}/scan`, {
+    method: 'POST',
+    headers: authHeaders(token),
+  })
+  // Ignore errors — scan is best-effort
+}
+
+/**
+ * Update library item metadata via PATCH /api/items/:id/media.
+ *
+ * Series is handled entirely here (not in the upload form) so ABS creates the
+ * series association with the correct sequence in a single operation.
+ */
+export async function updateAbsItemMetadata(
+  absUrl: string,
+  token: string,
+  itemId: string,
+  metadata: AbsUploadMetadata
+): Promise<string> {
+  const base = normalizeUrl(absUrl)
+
+  const metadataPayload: Record<string, unknown> = {
+    title: metadata.title,
+    authorName: metadata.authorName,
+    ...(metadata.narratorName && { narratorName: metadata.narratorName }),
+    ...(metadata.description && { description: metadata.description }),
+    ...(metadata.publishedYear && { publishedYear: metadata.publishedYear }),
+    ...(metadata.language && { language: metadata.language }),
+    ...(metadata.genres?.length && { genres: metadata.genres }),
+  }
+
+  const res = await fetch(`${base}/api/items/${itemId}/media`, {
+    method: 'PATCH',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ metadata: metadataPayload }),
+  })
+  const responseText = await res.text()
+  if (!res.ok) throw new Error(`ABS metadata update failed: ${res.status}: ${responseText}`)
+  return responseText
 }
 
 /**

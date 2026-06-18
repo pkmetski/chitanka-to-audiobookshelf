@@ -4,11 +4,19 @@ import type { BookSummary, ListingResult, GramofoncheDetail } from './types'
 const BASE = 'https://gramofonche.chitanka.info'
 
 async function fetchHtml(url: string): Promise<string> {
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 chitanka-abs-uploader/1.0' },
-  })
-  if (!res.ok) throw new Error(`Fetch failed ${url}: ${res.status}`)
-  return res.text()
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 chitanka-abs-uploader/1.0' },
+      next: { revalidate: 300 },
+    })
+    if (res.status === 429 && attempt < 2) {
+      await new Promise(r => setTimeout(r, 1500 * (attempt + 1)))
+      continue
+    }
+    if (!res.ok) throw new Error(`Fetch failed ${url}: ${res.status}`)
+    return res.text()
+  }
+  throw new Error(`Fetch failed ${url}: 429`)
 }
 
 function abs(href: string, pageUrl?: string): string {
@@ -123,8 +131,10 @@ export function parseDetailPage(html: string, pageUrl: string): GramofoncheDetai
     }
   })
 
-  // Description — use participants blockquote as description
-  const description = $('blockquote').first().text().trim()
+  // Description — prefer meta description if present; fall back to the
+  // participants blockquote which holds the production/cast info.
+  const metaDesc = ($('meta[name="description"]').attr('content') ?? '').trim()
+  const description = metaDesc || $('blockquote').first().text().trim()
 
   // Genres — not present on Gramofonche; derive from path or leave empty
   const genres: string[] = []

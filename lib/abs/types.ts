@@ -1,7 +1,13 @@
+export interface AbsLibraryFolder {
+  id: string
+  fullPath: string
+}
+
 export interface AbsLibrary {
   id: string
   name: string
   mediaType: 'book' | 'podcast'
+  folders: AbsLibraryFolder[]
 }
 
 export interface AbsUploadMetadata {
@@ -12,6 +18,7 @@ export interface AbsUploadMetadata {
   genres?: string[]
   publishedYear?: string
   language?: string
+  series?: { name: string; sequence: string }
 }
 
 export interface AbsUploadResult {

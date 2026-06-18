@@ -12,6 +12,7 @@ const DEFAULT: AbsSettings = { absUrl: '', absToken: '' }
 
 export function useSettings() {
   const [settings, setSettings] = useState<AbsSettings>(DEFAULT)
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     try {
@@ -22,6 +23,8 @@ export function useSettings() {
     } catch {
       // ignore parse errors
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoaded(true)
   }, [])
 
   function save(next: AbsSettings) {
@@ -36,5 +39,5 @@ export function useSettings() {
     }
   }
 
-  return { settings, save, absHeaders }
+  return { settings, save, absHeaders, loaded }
 }

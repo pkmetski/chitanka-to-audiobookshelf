@@ -1,7 +1,8 @@
 import { writeFile, mkdtemp, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { uploadToAbs, setAbsCoverFromUrl, findRecentLibraryItem } from '@/lib/abs/client'
+import { uploadToAbs, setAbsCoverFromUrl, findNewLibraryItem, fetchAbsLibraries, updateAbsItemMetadata } from '@/lib/abs/client'
+import { injectSeriesIntoEpub } from '@/lib/epub/series'
 import type { BookDetail } from '@/lib/scraper/types'
 import type { AbsUploadMetadata } from '@/lib/abs/types'
 
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
         })
         if (!fileRes.ok) throw new Error(`Download failed: ${fileRes.status}`)
 
-        const buffer = await fileRes.arrayBuffer()
+        let fileBuffer: Buffer = Buffer.from(await fileRes.arrayBuffer())
         const ext = detail.format === 'epub' ? '.epub' : '.mp3'
         const slug = detail.title
           .replace(/[^\p{L}\p{N}]+/gu, '_')
@@ -56,12 +57,22 @@ export async function POST(req: Request) {
           .slice(0, 80) || 'book'
         const filename = `${slug}${ext}`
 
+        // Inject series metadata into the epub OPF so ABS reads it on scan
+        if (detail.format === 'epub' && 'series' in detail && detail.series?.name) {
+          fileBuffer = injectSeriesIntoEpub(fileBuffer, detail.series.name, detail.series.sequence)
+        }
+
         dir = await mkdtemp(join(tmpdir(), 'chitanka-'))
         tempPath = join(dir, filename)
-        await writeFile(tempPath, Buffer.from(buffer))
+        await writeFile(tempPath, fileBuffer)
 
         // Step 2: Upload to ABS
         send({ status: 'uploading', message: 'Uploading to Audiobookshelf…' })
+
+        const libraries = await fetchAbsLibraries(absUrl!, absToken!)
+        const library = libraries.find(l => l.id === libraryId)
+        const folderId = library?.folders?.[0]?.id
+        if (!folderId) throw new Error(`No folder found for library ${libraryId}`)
 
         const metadata: AbsUploadMetadata = {
           title: detail.title,
@@ -71,40 +82,60 @@ export async function POST(req: Request) {
           genres: detail.genres.length ? detail.genres : undefined,
           publishedYear: detail.year || undefined,
           language: 'language' in detail ? detail.language || undefined : undefined,
+          series: 'series' in detail && detail.series ? detail.series : undefined,
         }
 
+        // Snapshot time immediately before the upload call so addedAt comparisons are tight
+        const uploadStartMs = Date.now()
         const uploadResult = await uploadToAbs(
           absUrl,
           absToken,
           libraryId,
+          folderId,
           tempPath,
           filename,
           metadata
         )
 
-        // Step 3: Upload cover
-        if (detail.coverUrl) {
-          send({ status: 'cover', message: 'Setting cover art…' })
-          try {
-            // ABS POST /api/upload returns no JSON body, so uploadResult.id may be ''.
-            // Discover the item ID by querying the most recently added items and matching by title.
-            let itemId = uploadResult.id
-            if (!itemId) {
-              const found = await findRecentLibraryItem(absUrl, absToken, libraryId, detail.title)
-              itemId = found?.id ?? ''
-            }
-
-            if (itemId) {
-              await setAbsCoverFromUrl(absUrl, absToken, itemId, detail.coverUrl)
-            }
-            // If we still have no itemId, skip cover silently — item was uploaded successfully.
-          } catch (coverErr) {
-            console.error('Cover upload failed (non-fatal):', coverErr)
-            // continue to done
+        // Step 3: Poll for the new item — ABS indexes asynchronously after upload.
+        let itemId = uploadResult.id
+        if (!itemId) {
+          for (let attempt = 0; attempt < 10 && !itemId; attempt++) {
+            await new Promise(r => setTimeout(r, 2000))
+            const found = await findNewLibraryItem(absUrl, absToken, libraryId, uploadStartMs)
+            itemId = found?.id ?? ''
           }
         }
 
-        send({ status: 'done', message: 'Done! Item added to Audiobookshelf.' })
+        // Step 4: Patch metadata once.
+        let patchStatus = 'skipped (item not found)'
+        if (itemId) {
+          try {
+            await updateAbsItemMetadata(absUrl, absToken, itemId, metadata)
+            patchStatus = 'ok'
+          } catch (metaErr) {
+            patchStatus = `patch failed: ${metaErr}`
+            console.error('Metadata patch failed (non-fatal):', metaErr)
+          }
+        }
+
+        // Step 5: Upload cover
+        if (detail.coverUrl) {
+          send({ status: 'cover', message: 'Setting cover art…' })
+          try {
+            if (itemId) {
+              await setAbsCoverFromUrl(absUrl, absToken, itemId, detail.coverUrl)
+            }
+          } catch (coverErr) {
+            console.error('Cover upload failed (non-fatal):', coverErr)
+          }
+        }
+
+        const doneMessage = itemId
+          ? `Done! Item added (id: ${itemId}, patch: ${patchStatus}).`
+          : `File uploaded but ABS did not index it — check your library type and trigger a manual scan.`
+
+        send({ status: 'done', message: doneMessage })
       } catch (err) {
         send({ status: 'error', message: 'Upload failed', error: String(err) })
       } finally {

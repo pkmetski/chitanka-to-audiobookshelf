@@ -1,38 +1,42 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { SourceToggle } from '@/components/source-toggle'
 import { SearchBar } from '@/components/search-bar'
 import { CategoryNav } from '@/components/category-nav'
 import { ResultsGrid } from '@/components/results-grid'
-import type { BookSummary, ListingResult, Site } from '@/lib/scraper/types'
+import type { BookSummary, Site } from '@/lib/scraper/types'
 import { DetailPanel } from '@/components/detail-panel'
 
 export default function BrowsePage() {
   const [site, setSite] = useState<Site>('chitanka')
   const [results, setResults] = useState<BookSummary[]>([])
+  const [nextPagePath, setNextPagePath] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedBook, setSelectedBook] = useState<BookSummary | null>(null)
 
-  async function loadResults(url: string) {
-    setLoading(true)
+  async function loadResults(url: string, append = false) {
+    if (append) setLoadingMore(true)
+    else { setLoading(true); setSelectedBook(null) }
     setError(null)
-    setSelectedBook(null)
     try {
       const res = await fetch(url)
       const data = await res.json()
       if (!res.ok) {
         setError(data.error ?? 'Request failed')
-        setResults([])
+        if (!append) setResults([])
         return
       }
-      setResults(data.items ?? [])
+      setResults(prev => append ? [...prev, ...(data.items ?? [])] : (data.items ?? []))
+      setNextPagePath(data.nextPagePath ?? null)
     } catch (err) {
       setError(String(err))
-      setResults([])
+      if (!append) setResults([])
     } finally {
-      setLoading(false)
+      if (append) setLoadingMore(false)
+      else setLoading(false)
     }
   }
 
@@ -44,9 +48,20 @@ export default function BrowsePage() {
     loadResults(`/api/scrape/browse?site=${site}&path=${encodeURIComponent(path)}`)
   }
 
+  function handleLoadMore() {
+    if (!nextPagePath) return
+    loadResults(`/api/scrape/browse?site=${site}&path=${encodeURIComponent(nextPagePath)}`, true)
+  }
+
+  useEffect(() => {
+    loadResults(`/api/scrape/browse?site=chitanka&path=/new`)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   function handleSiteChange(next: Site) {
     setSite(next)
     setResults([])
+    setNextPagePath(null)
     setSelectedBook(null)
   }
 
@@ -70,7 +85,20 @@ export default function BrowsePage() {
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : (
-            <ResultsGrid items={results} onSelect={setSelectedBook} />
+            <>
+              <ResultsGrid items={results} onSelect={setSelectedBook} />
+              {nextPagePath && (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="px-4 py-2 text-sm rounded border hover:bg-muted transition-colors disabled:opacity-50"
+                  >
+                    {loadingMore ? 'Loading…' : 'Load more'}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

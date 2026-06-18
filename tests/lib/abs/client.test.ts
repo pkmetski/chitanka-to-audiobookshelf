@@ -1,10 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { Readable } from 'stream'
 
-// Mock 'fs' so createReadStream does not touch the filesystem
-vi.mock('fs', () => ({
-  createReadStream: vi.fn(() => Readable.from(Buffer.from('fake-file-content'))),
-  statSync: vi.fn(() => ({ size: 1024 })),
+// Mock 'fs/promises' so readFile does not touch the filesystem
+vi.mock('fs/promises', () => ({
+  readFile: vi.fn(() => Promise.resolve(Buffer.from('fake-file-content'))),
 }))
 
 import { fetchAbsLibraries, uploadToAbs, setAbsCoverFromUrl } from '@/lib/abs/client'
@@ -52,7 +50,7 @@ describe('uploadToAbs', () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(JSON.stringify({ id: 'item-abc' }), { status: 200 })
     )
-    const result = await uploadToAbs(ABS_URL, TOKEN, 'lib1', '/tmp/book.epub', 'book.epub', {
+    const result = await uploadToAbs(ABS_URL, TOKEN, 'lib1', 'folder1', '/tmp/book.epub', 'book.epub', {
       title: 'Test Book',
       authorName: 'Test Author',
     })

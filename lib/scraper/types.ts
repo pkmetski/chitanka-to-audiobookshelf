@@ -18,6 +18,11 @@ export interface CategoryEntry {
   path: string   // relative path, e.g. "/autor/ivan-vazov"
 }
 
+export interface ChitankaSeries {
+  name: string
+  sequence: string
+}
+
 export interface ChitankaDetail {
   site: 'chitanka'
   url: string
@@ -28,6 +33,7 @@ export interface ChitankaDetail {
   genres: string[]
   language: string
   year: string
+  series: ChitankaSeries | null
   coverUrl: string | null
   downloadUrl: string
   format: 'epub'
