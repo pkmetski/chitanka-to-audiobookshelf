@@ -12,16 +12,18 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useSettings } from '@/hooks/use-settings'
+import { useSseUpload } from '@/hooks/use-sse-upload'
+import { UploadProgress } from './upload-progress'
 import type { BookDetail, BookSummary } from '@/lib/scraper/types'
 import type { AbsLibrary } from '@/lib/abs/types'
 
 interface Props {
   book: BookSummary
-  onUpload: (detail: BookDetail, libraryId: string) => void
 }
 
-export function DetailPanel({ book, onUpload }: Props) {
+export function DetailPanel({ book }: Props) {
   const { absHeaders } = useSettings()
+  const { state: uploadState, startUpload, reset: resetUpload } = useSseUpload()
   const [detail, setDetail] = useState<BookDetail | null>(null)
   const [libraries, setLibraries] = useState<AbsLibrary[]>([])
   const [libraryId, setLibraryId] = useState('')
@@ -79,7 +81,7 @@ export function DetailPanel({ book, onUpload }: Props) {
       ...('narrators' in detail && { narrators: narrators.split(',').map((s) => s.trim()).filter(Boolean) }),
       ...('language' in detail && { language }),
     }
-    onUpload(edited, libraryId)
+    startUpload(edited, libraryId, absHeaders())
   }
 
   return (
@@ -116,9 +118,13 @@ export function DetailPanel({ book, onUpload }: Props) {
         </Select>
       </div>
 
-      <Button className="w-full" disabled={!libraryId} onClick={handleUpload}>
-        Upload to Audiobookshelf
-      </Button>
+      {uploadState.status === 'idle' ? (
+        <Button className="w-full" disabled={!libraryId} onClick={handleUpload}>
+          Upload to Audiobookshelf
+        </Button>
+      ) : (
+        <UploadProgress state={uploadState} onReset={resetUpload} />
+      )}
     </div>
   )
 }

@@ -64,13 +64,7 @@ export default function BrowsePage() {
 
       {selectedBook && (
         <aside className="w-80 border-l overflow-y-auto shrink-0">
-          <DetailPanel
-            book={selectedBook}
-            onUpload={(detail, libraryId) => {
-              // upload handled in Task 12
-              console.log('Upload:', detail, libraryId)
-            }}
-          />
+          <DetailPanel book={selectedBook} />
         </aside>
       )}
     </div>
