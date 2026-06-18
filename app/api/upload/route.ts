@@ -1,4 +1,4 @@
-import { writeFile, unlink, mkdtemp, rm } from 'fs/promises'
+import { writeFile, mkdtemp, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { uploadToAbs, setAbsCoverFromUrl, findRecentLibraryItem } from '@/lib/abs/client'
