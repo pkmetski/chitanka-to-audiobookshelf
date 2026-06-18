@@ -2,12 +2,20 @@ import { createReadStream } from 'fs'
 import FormData from 'form-data'
 import type { AbsLibrary, AbsLibraryItem, AbsUploadMetadata, AbsUploadResult } from './types'
 
+function normalizeUrl(url: string): string {
+  const trimmed = url.trim().replace(/\/+$/, '')
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+    return `http://${trimmed}`
+  }
+  return trimmed
+}
+
 function authHeaders(token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}` }
 }
 
 export async function fetchAbsLibraries(absUrl: string, token: string): Promise<AbsLibrary[]> {
-  const res = await fetch(`${absUrl}/api/libraries`, {
+  const res = await fetch(`${normalizeUrl(absUrl)}/api/libraries`, {
     headers: authHeaders(token),
   })
   if (!res.ok) throw new Error(`ABS /api/libraries failed: ${res.status}`)
@@ -50,7 +58,7 @@ export async function uploadToAbs(
   if (metadata.language) form.append('language', metadata.language)
   if (metadata.genres?.length) form.append('genres', metadata.genres.join(','))
 
-  const res = await fetch(`${absUrl}/api/upload`, {
+  const res = await fetch(`${normalizeUrl(absUrl)}/api/upload`, {
     method: 'POST',
     headers: { ...authHeaders(token), ...form.getHeaders() },
     body: form as unknown as BodyInit,
@@ -91,7 +99,7 @@ export async function findRecentLibraryItem(
   title: string
 ): Promise<AbsLibraryItem | null> {
   const res = await fetch(
-    `${absUrl}/api/libraries/${libraryId}/items?limit=10&sort=addedAt&desc=1`,
+    `${normalizeUrl(absUrl)}/api/libraries/${libraryId}/items?limit=10&sort=addedAt&desc=1`,
     { headers: authHeaders(token) }
   )
   if (!res.ok) return null
@@ -119,7 +127,7 @@ export async function setAbsCoverFromUrl(
   itemId: string,
   coverUrl: string
 ): Promise<void> {
-  const res = await fetch(`${absUrl}/api/items/${itemId}/cover`, {
+  const res = await fetch(`${normalizeUrl(absUrl)}/api/items/${itemId}/cover`, {
     method: 'POST',
     headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
     body: JSON.stringify({ url: coverUrl }),
