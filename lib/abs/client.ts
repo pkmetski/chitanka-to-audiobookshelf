@@ -1,6 +1,6 @@
 import { createReadStream } from 'fs'
 import FormData from 'form-data'
-import type { AbsLibrary, AbsUploadMetadata, AbsUploadResult } from './types'
+import type { AbsLibrary, AbsLibraryItem, AbsUploadMetadata, AbsUploadResult } from './types'
 
 function authHeaders(token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}` }
@@ -73,6 +73,33 @@ export async function uploadToAbs(
     }
   }
   return { id: '' }
+}
+
+/**
+ * Find the most recently added item in a library that matches the given title.
+ *
+ * ABS API: GET /api/libraries/:id/items?limit=10&sort=addedAt&desc=1
+ * Response: { results: AbsLibraryItem[], ... }
+ *
+ * Used to recover the item ID after an upload, since POST /api/upload returns
+ * no JSON body (sendStatus(200)).
+ */
+export async function findRecentLibraryItem(
+  absUrl: string,
+  token: string,
+  libraryId: string,
+  title: string
+): Promise<AbsLibraryItem | null> {
+  const res = await fetch(
+    `${absUrl}/api/libraries/${libraryId}/items?limit=10&sort=addedAt&desc=1`,
+    { headers: authHeaders(token) }
+  )
+  if (!res.ok) return null
+  const data = await res.json()
+  const items: AbsLibraryItem[] = data.results ?? data.items ?? []
+  // Normalise for case-insensitive comparison
+  const normalised = title.trim().toLowerCase()
+  return items.find(item => item.media?.metadata?.title?.trim().toLowerCase() === normalised) ?? null
 }
 
 /**

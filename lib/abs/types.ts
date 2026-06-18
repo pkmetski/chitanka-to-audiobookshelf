@@ -17,3 +17,13 @@ export interface AbsUploadMetadata {
 export interface AbsUploadResult {
   id: string
 }
+
+export interface AbsLibraryItem {
+  id: string
+  media: {
+    metadata: {
+      title: string
+    }
+  }
+  addedAt: number
+}
