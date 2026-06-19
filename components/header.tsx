@@ -11,7 +11,7 @@ export function Header() {
       </Link>
       <Link href="/settings" className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }))}>
         <Settings className="h-5 w-5" />
-        <span className="sr-only">Settings</span>
+        <span className="sr-only">Настройки</span>
       </Link>
     </header>
   )

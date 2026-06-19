@@ -25,14 +25,14 @@ export function CategoryNav({ site, onNavigate }: Props) {
 
   return (
     <nav className="space-y-1">
-      <p className="text-xs font-semibold uppercase text-muted-foreground mb-2">Browse</p>
+      <p className="text-xs font-semibold uppercase text-muted-foreground mb-2">Разглеждай</p>
 
       {site === 'chitanka' && (
         <button
           className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors"
           onClick={() => onNavigate('/new')}
         >
-          New additions
+          Нови добавки
         </button>
       )}
 
@@ -41,15 +41,15 @@ export function CategoryNav({ site, onNavigate }: Props) {
           className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors"
           onClick={() => onNavigate('/authors')}
         >
-          By author (A–Z)
+          По автор (А–Я)
         </button>
       )}
 
       {site === 'chitanka' && (
         <>
-          <p className="text-xs font-semibold uppercase text-muted-foreground mt-4 mb-1 px-2">Genres</p>
+          <p className="text-xs font-semibold uppercase text-muted-foreground mt-4 mb-1 px-2">Жанрове</p>
           {loadingGenres && (
-            <p className="text-xs text-muted-foreground px-2 py-1">Loading…</p>
+            <p className="text-xs text-muted-foreground px-2 py-1">Зарежда…</p>
           )}
           {genres.map((g) => (
             <button
@@ -66,9 +66,9 @@ export function CategoryNav({ site, onNavigate }: Props) {
       {site === 'gramofonche' && (
         <>
           {[
-            { path: '/prikazki/', label: 'Stories' },
-            { path: '/pesnicki/', label: 'Songs' },
-            { path: '/zagolemi/', label: 'For grown-ups' },
+            { path: '/prikazki/', label: 'Приказки' },
+            { path: '/pesnicki/', label: 'Песнички' },
+            { path: '/zagolemi/', label: 'За по-големи' },
           ].map(({ path, label }) => (
             <button
               key={path}

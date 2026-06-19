@@ -5,6 +5,14 @@ import { Button } from '@/components/ui/button'
 
 const STEPS = ['downloading', 'uploading', 'cover', 'finalizing', 'done'] as const
 
+const STEP_LABELS: Record<typeof STEPS[number], string> = {
+  downloading: 'Изтегляне',
+  uploading: 'Качване',
+  cover: 'Корица',
+  finalizing: 'Финализиране',
+  done: 'Готово',
+}
+
 interface Props {
   state: UploadState
   onReset: () => void
@@ -33,7 +41,7 @@ export function UploadProgress({ state, onReset }: Props) {
               }`}
             >
               <span>{isDone ? '✓' : isActive ? '→' : '○'}</span>
-              <span className="capitalize">{step}</span>
+              <span>{STEP_LABELS[step]}</span>
             </div>
           )
         })}
@@ -47,7 +55,7 @@ export function UploadProgress({ state, onReset }: Props) {
 
       {(state.status === 'done' || state.status === 'error') && (
         <Button size="sm" variant="outline" onClick={onReset}>
-          Upload another
+          Качи друга
         </Button>
       )}
     </div>
