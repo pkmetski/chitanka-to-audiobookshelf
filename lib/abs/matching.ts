@@ -2,6 +2,7 @@ export function normalizeTitle(s: string): string {
   return s
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
+    .replace(/[-–—]/g, ' ')
     .replace(/[^\p{L}\p{N}\s]/gu, '')
     .toLowerCase()
     .replace(/\s+/g, ' ')
