@@ -28,7 +28,6 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
-    "@rolldown/binding-darwin-arm64": "1.0.3",
     "@tailwindcss/postcss": "^4",
     "@types/form-data": "^2.5.2",
     "@types/node": "^25",
@@ -40,6 +39,6 @@
     "jsdom": "^29.1.1",
     "tailwindcss": "^4",
     "typescript": "^6",
-    "vitest": "^4.1.9"
+    "vitest": "^3.2.6"
   }
 }
