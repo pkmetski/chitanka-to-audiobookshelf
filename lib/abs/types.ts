@@ -13,7 +13,7 @@ export interface AbsLibrary {
 export interface AbsUploadMetadata {
   title: string
   authorName: string
-  narratorName?: string
+  narrators?: string[]
   description?: string
   genres?: string[]
   publishedYear?: string

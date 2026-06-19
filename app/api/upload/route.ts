@@ -1,17 +1,17 @@
 import { writeFile, mkdtemp, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { uploadToAbs, setAbsCoverFromUrl, findNewLibraryItem, updateAbsItemMetadata } from '@/lib/abs/client'
+import { uploadToAbs, setAbsCoverFromUrl, findNewLibraryItems, updateAbsItemMetadata } from '@/lib/abs/client'
 import { injectSeriesIntoEpub } from '@/lib/epub/series'
 import type { BookDetail } from '@/lib/scraper/types'
-import type { AbsUploadMetadata } from '@/lib/abs/types'
+import type { AbsLibraryItem, AbsUploadMetadata } from '@/lib/abs/types'
 
 interface UploadRequest {
   detail: BookDetail
   libraryId: string
 }
 
-type UploadStatus = 'downloading' | 'uploading' | 'cover' | 'done' | 'error'
+type UploadStatus = 'downloading' | 'uploading' | 'cover' | 'finalizing' | 'done' | 'error'
 
 interface StatusEvent {
   status: UploadStatus
@@ -37,42 +37,56 @@ export async function POST(req: Request) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
       }
 
-      let tempPath: string | null = null
       let dir: string | null = null
 
       try {
-        // Step 1: Download file
-        send({ status: 'downloading', message: `Downloading ${detail.format.toUpperCase()} file…` })
-
-        const fileRes = await fetch(detail.downloadUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0 chitanka-abs-uploader/1.0' },
-        })
-        if (!fileRes.ok) throw new Error(`Download failed: ${fileRes.status}`)
-
-        let fileBuffer: Buffer = Buffer.from(await fileRes.arrayBuffer())
-        const ext = detail.format === 'epub' ? '.epub' : '.mp3'
+        // Step 1: Download files
+        const downloads: Array<{ url: string; title: string }> = 'downloads' in detail
+          ? detail.downloads
+          : [{ url: detail.downloadUrl, title: detail.title }]
+        const isMultiPart = downloads.length > 1
+        const padLen = String(downloads.length).length
         const slug = detail.title
           .replace(/[^\p{L}\p{N}]+/gu, '_')
           .replace(/^_+|_+$/g, '')
           .slice(0, 80) || 'book'
-        const filename = `${slug}${ext}`
 
-        // Inject series metadata into the epub OPF so ABS reads it on scan
-        if (detail.format === 'epub' && 'series' in detail && detail.series?.name) {
-          fileBuffer = injectSeriesIntoEpub(fileBuffer, detail.series.name, detail.series.sequence)
-        }
+        if (!downloads.length) throw new Error('No download links found on this page.')
+
+        send({ status: 'downloading', message: `Downloading ${detail.format.toUpperCase()} file${isMultiPart ? `s (${downloads.length})` : ''}…` })
 
         dir = await mkdtemp(join(tmpdir(), 'chitanka-'))
-        tempPath = join(dir, filename)
-        await writeFile(tempPath, fileBuffer)
 
-        // Step 2: Upload to ABS
-        send({ status: 'uploading', message: 'Uploading to Audiobookshelf…' })
+        const filesToUpload: Array<{ path: string; name: string }> = []
+        for (const [i, dl] of downloads.entries()) {
+          let filename: string
+          if (detail.format === 'mp3') {
+            const index = String(i + 1).padStart(padLen, '0')
+            const safeTitle = dl.title.replace(/[/\\:*?"<>|]/g, '_').trim() || `track-${index}`
+            filename = `${index} - ${safeTitle}.mp3`
+          } else {
+            filename = `${slug}.epub`
+          }
+
+          const fileRes = await fetch(dl.url, {
+            headers: { 'User-Agent': 'Mozilla/5.0 chitanka-abs-uploader/1.0' },
+          })
+          if (!fileRes.ok) throw new Error(`Download failed: ${fileRes.status}`)
+          let fileBuffer = Buffer.from(await fileRes.arrayBuffer())
+
+          if (detail.format === 'epub' && 'series' in detail && detail.series?.name) {
+            fileBuffer = injectSeriesIntoEpub(fileBuffer, detail.series.name, detail.series.sequence)
+          }
+
+          const tempPath = join(dir, filename)
+          await writeFile(tempPath, fileBuffer)
+          filesToUpload.push({ path: tempPath, name: filename })
+        }
 
         const metadata: AbsUploadMetadata = {
           title: detail.title,
           authorName: detail.authors.join(', '),
-          narratorName: 'narrators' in detail ? detail.narrators.join(', ') : undefined,
+          narrators: 'narrators' in detail && detail.narrators.length ? detail.narrators : undefined,
           description: detail.description || undefined,
           genres: detail.genres.length ? detail.genres : undefined,
           publishedYear: detail.year || undefined,
@@ -80,48 +94,66 @@ export async function POST(req: Request) {
           series: 'series' in detail && detail.series ? detail.series : undefined,
         }
 
-        // Snapshot time immediately before upload so addedAt comparisons are tight
+        // Step 2: Upload all files in a single request so ABS groups them into one item
+        send({ status: 'uploading', message: `Uploading to Audiobookshelf…` })
         const uploadStartMs = Date.now()
-        await uploadToAbs(absUrl, absToken, libraryId, tempPath, filename, metadata)
+        await uploadToAbs(absUrl, absToken, libraryId, filesToUpload, metadata)
 
-        // Step 3: ABS indexes asynchronously — poll immediately, then every 1s (up to ~10s).
-        let itemId = ''
-        for (let attempt = 0; attempt < 10 && !itemId; attempt++) {
+        // Step 3: Poll until the uploaded item appears in the library (up to 30s)
+        const expectedCount = 1
+        let newItems: AbsLibraryItem[] = []
+        for (let attempt = 0; attempt < 30 && newItems.length < expectedCount; attempt++) {
           if (attempt > 0) await new Promise(r => setTimeout(r, 1000))
-          const found = await findNewLibraryItem(absUrl, absToken, libraryId, uploadStartMs)
-          itemId = found?.id ?? ''
+          newItems = await findNewLibraryItems(absUrl, absToken, libraryId, uploadStartMs, expectedCount)
         }
 
-        // Step 4: Patch metadata — ABS reads title/author from the file's embedded tags
-        // during scan and ignores the upload form fields, so we must override via PATCH.
-        let patchStatus = 'skipped (item not found)'
-        if (itemId) {
+        // Step 4: PATCH-1 on all items (best-effort; ABS initial scan may not have run yet)
+        for (const item of newItems) {
           try {
-            await updateAbsItemMetadata(absUrl, absToken, itemId, metadata)
-            patchStatus = 'ok'
+            await updateAbsItemMetadata(absUrl, absToken, item.id, metadata)
           } catch (metaErr) {
-            patchStatus = `patch failed: ${metaErr}`
-            console.error('Metadata patch failed (non-fatal):', metaErr)
+            console.error('Metadata patch-1 failed (non-fatal):', metaErr)
           }
         }
 
-        // Step 5: Upload cover
-        if (detail.coverUrl) {
+        // Step 5: Cover on all items
+        if (detail.coverUrl && newItems.length) {
           send({ status: 'cover', message: 'Setting cover art…' })
-          try {
-            if (itemId) {
-              await setAbsCoverFromUrl(absUrl, absToken, itemId, detail.coverUrl)
+          for (const item of newItems) {
+            try {
+              await setAbsCoverFromUrl(absUrl, absToken, item.id, detail.coverUrl)
+            } catch (coverErr) {
+              console.error('Cover upload failed (non-fatal):', coverErr)
             }
-          } catch (coverErr) {
-            console.error('Cover upload failed (non-fatal):', coverErr)
           }
         }
 
-        const doneMessage = itemId
-          ? `Done! Item added (id: ${itemId}, patch: ${patchStatus}).`
-          : `File uploaded but ABS did not index it — check your library type and trigger a manual scan.`
+        // Step 6: Wait for ABS initial scan to finish (~12-13 s after the latest addedAt),
+        // then PATCH-2 to restore metadata that ABS overwrites from embedded tags.
+        if (newItems.length) {
+          const maxAddedAt = Math.max(...newItems.map(i => i.addedAt ?? 0))
+          const waitMs = Math.max(0, maxAddedAt + 14000 - Date.now())
+          if (waitMs > 0) {
+            send({ status: 'finalizing', message: 'Waiting for library scan to complete…' })
+            await new Promise(r => setTimeout(r, waitMs))
+          }
+          for (const item of newItems) {
+            try {
+              await updateAbsItemMetadata(absUrl, absToken, item.id, metadata)
+            } catch (metaErr) {
+              console.error('Metadata patch-2 failed (non-fatal):', metaErr)
+            }
+          }
+        }
 
-        send({ status: 'done', message: doneMessage })
+        const fileCount = filesToUpload.length
+        const idList = newItems.length ? ` (id: ${newItems[0].id})` : ''
+        send({
+          status: 'done',
+          message: newItems.length >= 1
+            ? `Done! ${fileCount} file${fileCount > 1 ? 's' : ''} uploaded${idList}.`
+            : `Uploaded ${fileCount} file${fileCount > 1 ? 's' : ''} but ABS did not index it — check your library type and trigger a manual scan.`,
+        })
       } catch (err) {
         send({ status: 'error', message: 'Upload failed', error: String(err) })
       } finally {

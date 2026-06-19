@@ -29,7 +29,9 @@ describe('parseDetailPage', () => {
     expect(detail.site).toBe('gramofonche')
     expect(detail.title).toBeTruthy()
     expect(detail.authors.length).toBeGreaterThan(0)
-    expect(detail.downloadUrl).toMatch(/https?:\/\//)
+    expect(detail.downloads.length).toBeGreaterThan(0)
+    expect(detail.downloads[0].url).toMatch(/https?:\/\//)
+    expect(detail.downloads[0].title).toBeTruthy()
     expect(detail.format).toBe('mp3')
   })
 

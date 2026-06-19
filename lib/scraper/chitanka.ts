@@ -42,7 +42,7 @@ export function parseSearchResults(html: string): ListingResult {
     const coverUrl = imgSrc ? abs(imgSrc) : null
     const slug = href.replace(/^\/book\/\d+-/, '')
     if (title && href) {
-      items.push({ url, title, authors: [], coverUrl, format: 'epub' })
+      items.push({ site: 'chitanka', url, title, authors: [], coverUrl, format: 'epub' })
       if (slug && coverUrl) slugCoverMap.set(slug, coverUrl)
     }
   })
@@ -66,7 +66,7 @@ export function parseSearchResults(html: string): ListingResult {
     const textSlug = href.replace(/^\/text\/\d+-/, '')
     const coverUrl = slugCoverMap.get(textSlug) ?? null
 
-    if (title && href) items.push({ url, title, authors, coverUrl, format: 'epub' })
+    if (title && href) items.push({ site: 'chitanka', url, title, authors, coverUrl, format: 'epub' })
   })
 
   // Fallback: genre/category pages show books as article.book-media cards (no superlist).
@@ -86,7 +86,7 @@ export function parseSearchResults(html: string): ListingResult {
         if (name) authors.push(name)
       })
 
-      if (title && href) items.push({ url: abs(href), title, authors, coverUrl, format: 'epub' })
+      if (title && href) items.push({ site: 'chitanka', url: abs(href), title, authors, coverUrl, format: 'epub' })
     })
   }
 

@@ -70,7 +70,13 @@ export function DetailPanel({ book }: Props) {
         setSeriesName(('series' in detailData && detailData.series?.name) ? detailData.series.name : '')
         setSeriesSequence(('series' in detailData && detailData.series?.sequence) ? detailData.series.sequence : '')
         setLibraries(libData.libraries ?? [])
-        if (libData.libraries?.length) setLibraryId(libData.libraries[0].id)
+        if (libData.libraries?.length) {
+          const defaultName = book.site === 'gramofonche' ? 'fairy tales' : 'books'
+          const defaultLib =
+            libData.libraries.find((l) => l.name.toLowerCase() === defaultName) ??
+            libData.libraries[0]
+          setLibraryId(defaultLib.id)
+        }
       })
       .catch((err) => setError(String(err)))
       .finally(() => setLoading(false))
@@ -120,6 +126,12 @@ export function DetailPanel({ book }: Props) {
       <Field label="Description" value={description} onChange={setDescription} textarea />
       <Field label="Genres" value={genres} onChange={setGenres} hint="comma-separated" />
       <Field label="Year" value={year} onChange={setYear} />
+      {detail.site === 'gramofonche' && detail.duration && (
+        <div>
+          <Label className="text-xs text-muted-foreground">Duration</Label>
+          <p className="text-sm">{detail.duration}</p>
+        </div>
+      )}
       {detail.site === 'chitanka' && (
         <>
           <Field label="Series" value={seriesName} onChange={setSeriesName} />

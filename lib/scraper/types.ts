@@ -2,10 +2,12 @@ export type Site = 'chitanka' | 'gramofonche'
 
 export interface BookSummary {
   url: string           // full URL of the detail page
+  site: Site
   title: string
   authors: string[]
   coverUrl: string | null
   format: 'epub' | 'mp3'
+  duration?: string
 }
 
 export interface ListingResult {
@@ -50,7 +52,7 @@ export interface GramofoncheDetail {
   year: string
   duration: string
   coverUrl: string | null
-  downloadUrl: string
+  downloads: Array<{ url: string; title: string }>
   format: 'mp3'
 }
 

@@ -57,7 +57,7 @@ describe('uploadToAbs', () => {
     // Second fetch: the actual upload
     vi.mocked(fetch).mockResolvedValueOnce(new Response('OK', { status: 200 }))
 
-    const result = await uploadToAbs(ABS_URL, TOKEN, 'lib1', '/tmp/book.epub', 'book.epub', {
+    const result = await uploadToAbs(ABS_URL, TOKEN, 'lib1', [{ path: '/tmp/book.epub', name: 'book.epub' }], {
       title: 'Test Book',
       authorName: 'Test Author',
     })

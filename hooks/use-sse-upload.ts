@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import type { BookDetail } from '@/lib/scraper/types'
 
-export type UploadStatus = 'idle' | 'downloading' | 'uploading' | 'cover' | 'done' | 'error'
+export type UploadStatus = 'idle' | 'downloading' | 'uploading' | 'cover' | 'finalizing' | 'done' | 'error'
 
 export interface UploadState {
   status: UploadStatus

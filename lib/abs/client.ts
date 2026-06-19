@@ -35,8 +35,7 @@ export async function uploadToAbs(
   absUrl: string,
   token: string,
   libraryId: string,
-  filePath: string,
-  filename: string,
+  files: Array<{ path: string; name: string }>,
   metadata: AbsUploadMetadata
 ): Promise<AbsUploadResult> {
   const libraries = await fetchAbsLibraries(absUrl, token)
@@ -44,12 +43,13 @@ export async function uploadToAbs(
   const folderId = library?.folders?.[0]?.id
   if (!folderId) throw new Error(`No folder found for library ${libraryId}`)
 
-  const buffer = await readFile(filePath)
-  const mimeType = filename.endsWith('.epub') ? 'application/epub+zip' : 'audio/mpeg'
-  const blob = new Blob([buffer], { type: mimeType })
-
   const form = new FormData()
-  form.append('files', blob, filename)
+  for (const file of files) {
+    const buffer = await readFile(file.path)
+    const mimeType = file.name.endsWith('.epub') ? 'application/epub+zip' : 'audio/mpeg'
+    const blob = new Blob([buffer], { type: mimeType })
+    form.append('files', blob, file.name)
+  }
   form.append('library', libraryId)
   form.append('folder', folderId)
   form.append('title', metadata.title)
@@ -68,26 +68,39 @@ export async function uploadToAbs(
 }
 
 /**
- * Find the first library item whose addedAt timestamp (ms) is after the given
- * upload-start timestamp. Used to recover the item ID after POST /api/upload,
- * which returns no JSON body.
+ * Find all library items whose addedAt timestamp (ms) is after the given
+ * upload-start timestamp. Used to recover item IDs after POST /api/upload,
+ * which returns no JSON body. Fetches enough items to cover expectedCount.
  *
  * ABS 2.35.1 returns addedAt in milliseconds.
  */
+export async function findNewLibraryItems(
+  absUrl: string,
+  token: string,
+  libraryId: string,
+  afterMs: number,
+  expectedCount: number = 1
+): Promise<AbsLibraryItem[]> {
+  const limit = Math.max(expectedCount + 2, 10)
+  const res = await fetch(
+    `${normalizeUrl(absUrl)}/api/libraries/${libraryId}/items?limit=${limit}&sort=addedAt&desc=1`,
+    { headers: authHeaders(token) }
+  )
+  if (!res.ok) return []
+  const data = await res.json()
+  const items: AbsLibraryItem[] = data.results ?? data.items ?? []
+  return items.filter(item => (item.addedAt ?? 0) > afterMs)
+}
+
+/** Convenience wrapper returning only the first matching item. */
 export async function findNewLibraryItem(
   absUrl: string,
   token: string,
   libraryId: string,
   afterMs: number
 ): Promise<AbsLibraryItem | null> {
-  const res = await fetch(
-    `${normalizeUrl(absUrl)}/api/libraries/${libraryId}/items?limit=10&sort=addedAt&desc=1`,
-    { headers: authHeaders(token) }
-  )
-  if (!res.ok) return null
-  const data = await res.json()
-  const items: AbsLibraryItem[] = data.results ?? data.items ?? []
-  return items.find(item => (item.addedAt ?? 0) > afterMs) ?? null
+  const results = await findNewLibraryItems(absUrl, token, libraryId, afterMs, 1)
+  return results[0] ?? null
 }
 
 /**
@@ -120,10 +133,18 @@ export async function updateAbsItemMetadata(
 ): Promise<string> {
   const base = normalizeUrl(absUrl)
 
+  // ABS ignores `authorName` when the item already has an author set via ID3 scan;
+  // `authors: [{name}]` always wins. Split comma/ampersand-separated names.
+  const authorObjects = metadata.authorName
+    .split(/\s*[,&]\s*/)
+    .map(n => n.trim())
+    .filter(Boolean)
+    .map(name => ({ name }))
+
   const metadataPayload: Record<string, unknown> = {
     title: metadata.title,
-    authorName: metadata.authorName,
-    ...(metadata.narratorName && { narratorName: metadata.narratorName }),
+    authors: authorObjects,
+    ...(metadata.narrators?.length && { narrators: metadata.narrators }),
     ...(metadata.description && { description: metadata.description }),
     ...(metadata.publishedYear && { publishedYear: metadata.publishedYear }),
     ...(metadata.language && { language: metadata.language }),

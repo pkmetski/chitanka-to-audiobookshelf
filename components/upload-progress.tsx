@@ -3,7 +3,7 @@
 import type { UploadState } from '@/hooks/use-sse-upload'
 import { Button } from '@/components/ui/button'
 
-const STEPS = ['downloading', 'uploading', 'cover', 'done'] as const
+const STEPS = ['downloading', 'uploading', 'cover', 'finalizing', 'done'] as const
 
 interface Props {
   state: UploadState
