@@ -8,7 +8,7 @@ import { ResultsGrid } from '@/components/results-grid'
 import type { BookSummary, Site } from '@/lib/scraper/types'
 import { DetailPanel } from '@/components/detail-panel'
 import { useSettings } from '@/hooks/use-settings'
-import { buildAbsTitleSet, isExistingInAbs } from '@/lib/abs/matching'
+import { buildAbsTitleMap, isExistingInAbs, parseDurationMins, type AbsTitleMap } from '@/lib/abs/matching'
 
 export default function BrowsePage() {
   const { settings, absHeaders, loaded } = useSettings()
@@ -19,8 +19,7 @@ export default function BrowsePage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedBook, setSelectedBook] = useState<BookSummary | null>(null)
-  const [absItems, setAbsItems] = useState<Set<string> | null>(null)
-  const [absStatus, setAbsStatus] = useState<string | null>(null)
+  const [absItems, setAbsItems] = useState<AbsTitleMap | null>(null)
   const [hideOwned, setHideOwned] = useState(false)
 
   async function loadResults(url: string, append = false) {
@@ -31,7 +30,7 @@ export default function BrowsePage() {
       const res = await fetch(url)
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error ?? 'Request failed')
+        setError(data.error ?? 'Заявката е неуспешна')
         if (!append) setResults([])
         return
       }
@@ -66,19 +65,11 @@ export default function BrowsePage() {
 
   useEffect(() => {
     if (!loaded) return
-    if (!settings.absUrl || !settings.absToken) {
-      setAbsStatus('ABS not configured')
-      return
-    }
-    setAbsStatus('loading')
+    if (!settings.absUrl || !settings.absToken) return
     fetch('/api/abs/items', { headers: absHeaders() })
       .then(res => res.ok ? res.json() : res.json().then(e => Promise.reject(e?.error ?? `HTTP ${res.status}`)))
-      .then(data => {
-        const set = buildAbsTitleSet(data.items)
-        setAbsItems(set)
-        setAbsStatus(`${set.size} ABS titles loaded`)
-      })
-      .catch((err) => setAbsStatus(`ABS: ${err}`))
+      .then(data => setAbsItems(buildAbsTitleMap(data.items)))
+      .catch(() => { /* ABS unavailable — detection stays off */ })
   }, [loaded, settings.absUrl, settings.absToken])
 
   function handleSiteChange(next: Site) {
@@ -105,23 +96,20 @@ export default function BrowsePage() {
               onClick={() => setHideOwned(h => !h)}
               className={`shrink-0 text-xs px-2 py-1 rounded border transition-colors ${hideOwned ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted'}`}
             >
-              {hideOwned ? 'Show owned' : 'Hide owned'}
+              {hideOwned ? 'Покажи притежаваните' : 'Скрий притежаваните'}
             </button>
           )}
         </div>
         {error && (
           <p className="text-sm text-destructive px-4">{error}</p>
         )}
-        {absStatus && (
-          <p className="text-xs text-muted-foreground px-4 py-1">{absStatus}</p>
-        )}
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">Зарежда…</p>
           ) : (
             <>
               <ResultsGrid
-                items={hideOwned && absItems ? results.filter(b => !isExistingInAbs(b.title, b.authors, absItems)) : results}
+                items={hideOwned && absItems ? results.filter(b => !isExistingInAbs(b.title, b.authors, absItems, parseDurationMins(b.duration))) : results}
                 onSelect={setSelectedBook}
                 absItems={absItems}
               />
@@ -132,7 +120,7 @@ export default function BrowsePage() {
                     disabled={loadingMore}
                     className="px-4 py-2 text-sm rounded border hover:bg-muted transition-colors disabled:opacity-50"
                   >
-                    {loadingMore ? 'Loading…' : 'Load more'}
+                    {loadingMore ? 'Зарежда…' : 'Зареди още'}
                   </button>
                 </div>
               )}

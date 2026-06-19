@@ -26,7 +26,7 @@ export function BookCard({ book, onClick, isExisting }: Props) {
             />
           ) : (
             <div className={`w-full bg-muted rounded mb-2 flex items-center justify-center text-muted-foreground text-sm ${book.site === 'gramofonche' ? 'aspect-square' : 'aspect-[2/3]'}`}>
-              No cover
+              Без корица
             </div>
           )}
           {isExisting && (

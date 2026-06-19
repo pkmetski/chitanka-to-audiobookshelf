@@ -28,8 +28,10 @@ export interface AbsUploadResult {
 export interface AbsLibraryItem {
   id: string
   media: {
+    duration?: number
     metadata: {
       title: string
+      authorName?: string
       authors?: { name: string }[]
     }
   }
