@@ -64,12 +64,21 @@ export function CategoryNav({ site, onNavigate }: Props) {
       )}
 
       {site === 'gramofonche' && (
-        <button
-          className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors"
-          onClick={() => onNavigate('/prikazki/')}
-        >
-          Stories
-        </button>
+        <>
+          {[
+            { path: '/prikazki/', label: 'Stories' },
+            { path: '/pesnicki/', label: 'Songs' },
+            { path: '/zagolemi/', label: 'For grown-ups' },
+          ].map(({ path, label }) => (
+            <button
+              key={path}
+              className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors"
+              onClick={() => onNavigate(path)}
+            >
+              {label}
+            </button>
+          ))}
+        </>
       )}
     </nav>
   )

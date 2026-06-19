@@ -21,14 +21,13 @@ async function fetchHtml(url: string): Promise<string> {
 
 function abs(href: string, pageUrl?: string): string {
   if (!href) return href
-  if (href.startsWith('http')) return href
-  if (href.startsWith('//')) return `https:${href}`
-  if (href.startsWith('./') && pageUrl) {
-    // Resolve relative path against page URL
-    const base = pageUrl.endsWith('/') ? pageUrl : pageUrl.replace(/\/[^/]*$/, '/')
-    return `${base}${href.slice(2)}`
+  try {
+    // URL constructor resolves relative paths and percent-encodes non-ASCII characters,
+    // which is required for Node.js fetch to accept filenames with Cyrillic characters.
+    return new URL(href, pageUrl ?? BASE + '/').href
+  } catch {
+    return href
   }
-  return `${BASE}${href}`
 }
 
 /**
@@ -78,7 +77,11 @@ export function parseSearchResults(html: string): ListingResult {
     const imgSrc = linkEl.find('img').first().attr('src') ?? null
     const coverUrl = imgSrc ? abs(imgSrc) : null
 
-    if (title && href) items.push({ url, title, authors, coverUrl, format: 'mp3' })
+    const elText = $(el).text()
+    const durationMatch = elText.match(/(\d+)мин/)
+    const duration = durationMatch ? `${durationMatch[1]}мин` : undefined
+
+    if (title && href) items.push({ site: 'gramofonche', url, title, authors, coverUrl, format: 'mp3', duration })
   })
 
   // Gramofonche uses simple paginated category pages; no standard next-page link
@@ -151,15 +154,30 @@ export function parseDetailPage(html: string, pageUrl: string): GramofoncheDetai
   const imgSrc = $('div.kolona_kartinki img').first().attr('src') ?? null
   const coverUrl = imgSrc ? abs(imgSrc) : null
 
-  // MP3 download link: inside div.kolona0, link ending in .mp3
-  // The href is relative like ./abanosoviia-kon.mp3
-  const audioHref =
-    $('div.kolona0 a[href$=".mp3"]').first().attr('href') ??
-    $('a[href$=".mp3"]').first().attr('href') ??
-    $('div.kolona0 a[href$=".zip"]').first().attr('href') ??
-    $('a[href$=".zip"]').first().attr('href') ??
-    ''
-  const downloadUrl = abs(audioHref, pageUrl)
+  // Collect all MP3 links in page order, capturing the title text from each link.
+  // The "Сваляне" download buttons are injected by client-side JS and absent in raw HTML,
+  // so each track has exactly one <a href="...mp3"> whose text content is the track title.
+  const downloads: Array<{ url: string; title: string }> = []
+  $('a[href$=".mp3"]').each((_, el) => {
+    const href = $(el).attr('href')
+    if (!href) return
+    // Strip <i> subtitles and trailing parenthetical, e.g. " (Шехерезада, реж. Мария Нанчева)"
+    const clone = $(el).clone()
+    clone.find('i').remove()
+    const trackTitle = clone.text().replace(/\s*\(.*$/, '').trim()
+    downloads.push({ url: abs(href, pageUrl), title: trackTitle })
+  })
+
+  // Fall back to zip if no MP3 found
+  if (!downloads.length) {
+    const zipHref =
+      $('div.kolona0 a[href$=".zip"]').first().attr('href') ??
+      $('a[href$=".zip"]').first().attr('href') ?? ''
+    if (zipHref) {
+      const url = abs(zipHref, pageUrl)
+      downloads.push({ url, title: zipHref.split('/').pop()?.replace(/\.zip$/, '') || 'download' })
+    }
+  }
 
   return {
     site: 'gramofonche',
@@ -172,17 +190,30 @@ export function parseDetailPage(html: string, pageUrl: string): GramofoncheDetai
     year,
     duration,
     coverUrl,
-    downloadUrl,
+    downloads,
     format: 'mp3',
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function searchGramofonche(_query: string): Promise<ListingResult> {
-  // Gramofonche /search endpoint returns 404; fall back to browsing /prikazki/
-  // The query parameter is accepted but ignored — UI should communicate this limitation
-  const html = await fetchHtml(`${BASE}/prikazki/`)
-  return parseSearchResults(html)
+export async function searchGramofonche(query: string): Promise<ListingResult> {
+  // Gramofonche has no search endpoint; fetch all three category first-pages
+  // and filter client-side by title/author (~1200 items vs 114 on the homepage).
+  const [prikazki, pesnicki, zagolemi] = await Promise.all([
+    fetchHtml(`${BASE}/prikazki/`).then(h => parseSearchResults(h).items),
+    fetchHtml(`${BASE}/pesnicki/`).then(h => parseSearchResults(h).items),
+    fetchHtml(`${BASE}/zagolemi/`).then(h => parseSearchResults(h).items),
+  ])
+
+  const all = [...prikazki, ...pesnicki, ...zagolemi]
+  const q = query.trim().toLowerCase()
+  if (!q) return { items: all, nextPagePath: null }
+
+  const items = all.filter(
+    item =>
+      item.title.toLowerCase().includes(q) ||
+      item.authors.some(a => a.toLowerCase().includes(q)),
+  )
+  return { items, nextPagePath: null }
 }
 
 export async function browseGramofonche(path: string): Promise<ListingResult> {

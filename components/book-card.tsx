@@ -20,10 +20,10 @@ export function BookCard({ book, onClick }: Props) {
           <img
             src={book.coverUrl}
             alt={book.title}
-            className="w-full aspect-[2/3] object-cover rounded mb-2"
+            className={`w-full object-cover rounded mb-2 ${book.site === 'gramofonche' ? 'aspect-square' : 'aspect-[2/3]'}`}
           />
         ) : (
-          <div className="w-full aspect-[2/3] bg-muted rounded mb-2 flex items-center justify-center text-muted-foreground text-sm">
+          <div className={`w-full bg-muted rounded mb-2 flex items-center justify-center text-muted-foreground text-sm ${book.site === 'gramofonche' ? 'aspect-square' : 'aspect-[2/3]'}`}>
             No cover
           </div>
         )}
@@ -31,9 +31,14 @@ export function BookCard({ book, onClick }: Props) {
         <p className="text-muted-foreground text-xs line-clamp-1 mt-0.5">
           {book.authors.join(', ')}
         </p>
-        <Badge variant="secondary" className="mt-1 text-xs">
-          {book.format.toUpperCase()}
-        </Badge>
+        <div className="flex items-center gap-1 mt-1 flex-wrap">
+          <Badge variant="secondary" className="text-xs">
+            {book.format.toUpperCase()}
+          </Badge>
+          {book.duration && (
+            <span className="text-muted-foreground text-xs">{book.duration}</span>
+          )}
+        </div>
       </CardContent>
     </Card>
   )
