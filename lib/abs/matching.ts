@@ -39,19 +39,11 @@ export function isExistingInAbs(
 
   const normAuthor = candidateAuthors.length ? normalizeTitle(candidateAuthors[0]) : ''
 
-  // Try exact combined key first (title + first author)
+  // Exact combined key (title + first author) — primary check
   if (normAuthor && absSet.has(normTitle + SEP + normAuthor)) return true
 
-  // Fall back to title-only key (matches ABS items that were stored without an author)
+  // Exact title-only key — for ABS items stored without an author
   if (absSet.has(normTitle)) return true
-
-  // Substring check: ABS has a longer title (parenthetical suffix).
-  // Only checks title-only entries to avoid combined keys producing false positives.
-  // Guard: candidate must be ≥80% of ABS title length.
-  for (const key of absSet) {
-    if (key.includes(SEP)) continue
-    if (key.includes(normTitle) && normTitle.length >= key.length * 0.8) return true
-  }
 
   return false
 }

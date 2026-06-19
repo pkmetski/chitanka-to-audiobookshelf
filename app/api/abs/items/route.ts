@@ -15,6 +15,9 @@ export async function GET(req: Request) {
       libraries.map(lib => fetchAbsLibraryItems(absUrl, absToken, lib.id))
     )
     const items = results.flatMap(r => (r.status === 'fulfilled' ? r.value : []))
+    if (items.length > 0) {
+      console.log('[abs/items] sample item metadata:', JSON.stringify(items[0].media?.metadata, null, 2))
+    }
     return NextResponse.json({
       items: items.map(item => ({
         title: item.media.metadata.title,
