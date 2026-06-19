@@ -89,7 +89,10 @@ export function isExistingInAbs(
   const normTitle = normalizeTitle(candidateTitle)
   if (normTitle.length < 3) return false
 
-  const normAuthor = candidateAuthors.length ? normalizeTitle(candidateAuthors[0]) : ''
+  // Normalize all candidate authors. Gramofonche listings may split "Source, реж. Name"
+  // into separate author entries; we check each against the ABS map so that a match on
+  // any candidate author is sufficient.
+  const normAuthors = candidateAuthors.map(a => normalizeTitle(a)).filter(Boolean)
 
   function check(key: string): boolean {
     const durs = absMap.get(key)
@@ -97,8 +100,10 @@ export function isExistingInAbs(
     return durationOk(candidateDurationMins, durs)
   }
 
-  // 1. Exact combined key (title + first author) — primary check
-  if (normAuthor && check(normTitle + SEP + normAuthor)) return true
+  // 1. Exact combined key (title + each candidate author) — primary check
+  for (const na of normAuthors) {
+    if (check(normTitle + SEP + na)) return true
+  }
 
   // 2. Exact title-only key — for ABS items stored without an author
   if (check(normTitle)) return true
@@ -106,12 +111,13 @@ export function isExistingInAbs(
   // 3. Exact title, fuzzy author — handles ABS items where the author field has
   //    a different order or concatenated role prefix with no spaces
   //    (e.g. ABS "реж.ЛилянаТодорова ШарлПеро" vs candidate "Шарл Перо")
-  if (normAuthor) {
+  if (normAuthors.length > 0) {
     for (const [key, durs] of absMap) {
       const sepIdx = key.indexOf(SEP)
       if (sepIdx === -1) continue
       if (key.slice(0, sepIdx) !== normTitle) continue
-      if (authorsOverlap(normAuthor, key.slice(sepIdx + SEP.length))) {
+      const keyAuthor = key.slice(sepIdx + SEP.length)
+      if (normAuthors.some(na => authorsOverlap(na, keyAuthor))) {
         if (durationOk(candidateDurationMins, durs)) return true
       }
     }
@@ -123,7 +129,7 @@ export function isExistingInAbs(
   //    Requires both sides to have an author — without author confirmation,
   //    a title prefix is not enough (series name would falsely match Книга N).
   //    Minimum 8 chars on the candidate title guards against short-title false positives.
-  if (normTitle.length >= 8 && normAuthor) {
+  if (normTitle.length >= 8 && normAuthors.length > 0) {
     const prefix = normTitle + ' '
     for (const [key, durs] of absMap) {
       const sepIdx = key.indexOf(SEP)
@@ -131,7 +137,7 @@ export function isExistingInAbs(
       const keyTitle = key.slice(0, sepIdx)
       if (!keyTitle.startsWith(prefix)) continue
       const keyAuthor = key.slice(sepIdx + SEP.length)
-      if (authorsOverlap(normAuthor, keyAuthor)) {
+      if (normAuthors.some(na => authorsOverlap(na, keyAuthor))) {
         if (durationOk(candidateDurationMins, durs)) return true
       }
     }

@@ -1,7 +1,7 @@
 import { writeFile, mkdtemp, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { uploadToAbs, setAbsCoverFromUrl, findNewLibraryItems, updateAbsItemMetadata, scanAbsLibrary } from '@/lib/abs/client'
+import { uploadToAbs, setAbsCoverFromUrl, findNewLibraryItems, updateAbsItemMetadata, scanAbsLibrary, markAbsItemAsOwned } from '@/lib/abs/client'
 import { injectSeriesIntoEpub } from '@/lib/epub/series'
 import type { BookDetail } from '@/lib/scraper/types'
 import type { AbsLibraryItem, AbsUploadMetadata } from '@/lib/abs/types'
@@ -90,7 +90,7 @@ export async function POST(req: Request) {
           description: detail.description || undefined,
           genres: detail.genres.length ? detail.genres : undefined,
           publishedYear: detail.year || undefined,
-          language: 'language' in detail ? detail.language || undefined : undefined,
+          language: 'Bulgarian',
           series: 'series' in detail && detail.series ? detail.series : undefined,
         }
 
@@ -160,6 +160,15 @@ export async function POST(req: Request) {
               await updateAbsItemMetadata(absUrl, absToken, item.id, metadata)
             } catch (metaErr) {
               console.error('Metadata patch-2 failed (non-fatal):', metaErr)
+            }
+          }
+          if (detail.site === 'chitanka') {
+            for (const item of newItems) {
+              try {
+                await markAbsItemAsOwned(absUrl, absToken, item.id)
+              } catch (ownedErr) {
+                console.error('Mark-owned failed (non-fatal):', ownedErr)
+              }
             }
           }
         }

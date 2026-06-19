@@ -37,7 +37,6 @@ export function DetailPanel({ book }: Props) {
   const [description, setDescription] = useState('')
   const [genres, setGenres] = useState('')
   const [year, setYear] = useState('')
-  const [language, setLanguage] = useState('Български')
   const [seriesName, setSeriesName] = useState('')
   const [seriesSequence, setSeriesSequence] = useState('')
 
@@ -66,7 +65,6 @@ export function DetailPanel({ book }: Props) {
         setDescription(detailData.description)
         setGenres(detailData.genres.join(', '))
         setYear(detailData.year)
-        setLanguage(('language' in detailData && detailData.language) ? detailData.language : 'Български')
         setSeriesName(('series' in detailData && detailData.series?.name) ? detailData.series.name : '')
         setSeriesSequence(('series' in detailData && detailData.series?.sequence) ? detailData.series.sequence : '')
         setLibraries(libData.libraries ?? [])
@@ -97,7 +95,6 @@ export function DetailPanel({ book }: Props) {
       genres: genres.split(',').map((s) => s.trim()).filter(Boolean),
       year,
       ...('narrators' in detail && { narrators: narrators.split(',').map((s) => s.trim()).filter(Boolean) }),
-      ...('language' in detail && { language }),
       ...('series' in detail && { series: seriesName ? { name: seriesName, sequence: seriesSequence } : null }),
     }
     startUpload(edited, libraryId, absHeaders())
@@ -136,7 +133,6 @@ export function DetailPanel({ book }: Props) {
         <>
           <Field label="Поредица" value={seriesName} onChange={setSeriesName} />
           <Field label="Поредица №" value={seriesSequence} onChange={setSeriesSequence} />
-          <Field label="Език" value={language} onChange={setLanguage} />
         </>
       )}
 
