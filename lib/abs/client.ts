@@ -221,11 +221,14 @@ export async function scanAbsLibrary(
   token: string,
   libraryId: string
 ): Promise<void> {
-  await fetch(`${normalizeUrl(absUrl)}/api/libraries/${libraryId}/scan`, {
-    method: 'POST',
-    headers: authHeaders(token),
-  })
-  // Ignore errors — scan is best-effort
+  try {
+    await fetch(`${normalizeUrl(absUrl)}/api/libraries/${libraryId}/scan`, {
+      method: 'POST',
+      headers: authHeaders(token),
+    })
+  } catch {
+    // Scan is best-effort; never let a scan failure surface as an upload error
+  }
 }
 
 /**
