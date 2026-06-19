@@ -15,8 +15,12 @@ export function buildAbsTitleSet(items: { title: string }[]): Set<string> {
 export function isExistingInAbs(candidateTitle: string, absSet: Set<string>): boolean {
   const normalized = normalizeTitle(candidateTitle)
   if (normalized.length < 3) return false
+  if (absSet.has(normalized)) return true
   for (const absTitle of absSet) {
-    if (absTitle.includes(normalized) || normalized.includes(absTitle)) return true
+    // ABS title contains candidate (ABS has extra parenthetical/subtitle).
+    // Guard: candidate must be ≥80% of ABS title length to prevent a short ABS
+    // title like "Аладин" from matching a much longer candidate.
+    if (absTitle.includes(normalized) && normalized.length >= absTitle.length * 0.8) return true
   }
   return false
 }
