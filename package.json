@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "start": "npm install && next dev -p 3000",
+    "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start",
+    "serve": "next start",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest"

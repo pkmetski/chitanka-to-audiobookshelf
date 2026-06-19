@@ -7,8 +7,11 @@ import { CategoryNav } from '@/components/category-nav'
 import { ResultsGrid } from '@/components/results-grid'
 import type { BookSummary, Site } from '@/lib/scraper/types'
 import { DetailPanel } from '@/components/detail-panel'
+import { useSettings } from '@/hooks/use-settings'
+import { buildAbsTitleMap, isExistingInAbs, parseDurationMins, type AbsTitleMap } from '@/lib/abs/matching'
 
 export default function BrowsePage() {
+  const { settings, absHeaders, loaded } = useSettings()
   const [site, setSite] = useState<Site>('chitanka')
   const [results, setResults] = useState<BookSummary[]>([])
   const [nextPagePath, setNextPagePath] = useState<string | null>(null)
@@ -16,6 +19,8 @@ export default function BrowsePage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedBook, setSelectedBook] = useState<BookSummary | null>(null)
+  const [absItems, setAbsItems] = useState<AbsTitleMap | null>(null)
+  const [hideOwned, setHideOwned] = useState(false)
 
   async function loadResults(url: string, append = false) {
     if (append) setLoadingMore(true)
@@ -25,7 +30,7 @@ export default function BrowsePage() {
       const res = await fetch(url)
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error ?? 'Request failed')
+        setError(data.error ?? 'Заявката е неуспешна')
         if (!append) setResults([])
         return
       }
@@ -58,6 +63,15 @@ export default function BrowsePage() {
     loadResults(`/api/scrape/browse?site=chitanka&path=/new`)
   }, [])
 
+  useEffect(() => {
+    if (!loaded) return
+    if (!settings.absUrl || !settings.absToken) return
+    fetch('/api/abs/items', { headers: absHeaders() })
+      .then(res => res.ok ? res.json() : res.json().then(e => Promise.reject(e?.error ?? `HTTP ${res.status}`)))
+      .then(data => setAbsItems(buildAbsTitleMap(data.items)))
+      .catch(() => { /* ABS unavailable — detection stays off */ })
+  }, [loaded, settings.absUrl, settings.absToken])
+
   function handleSiteChange(next: Site) {
     setSite(next)
     setResults([])
@@ -77,16 +91,28 @@ export default function BrowsePage() {
         <div className="p-4 border-b flex flex-col gap-3 sm:flex-row sm:items-center">
           <SourceToggle active={site} onChange={handleSiteChange} />
           <SearchBar onSearch={handleSearch} />
+          {absItems && (
+            <button
+              onClick={() => setHideOwned(h => !h)}
+              className={`shrink-0 text-xs px-2 py-1 rounded border transition-colors ${hideOwned ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted'}`}
+            >
+              {hideOwned ? 'Покажи притежаваните' : 'Скрий притежаваните'}
+            </button>
+          )}
         </div>
         {error && (
           <p className="text-sm text-destructive px-4">{error}</p>
         )}
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">Зарежда…</p>
           ) : (
             <>
-              <ResultsGrid items={results} onSelect={setSelectedBook} />
+              <ResultsGrid
+                items={hideOwned && absItems ? results.filter(b => !isExistingInAbs(b.title, b.authors, absItems, parseDurationMins(b.duration))) : results}
+                onSelect={setSelectedBook}
+                absItems={absItems}
+              />
               {nextPagePath && (
                 <div className="mt-4 flex justify-center">
                   <button
@@ -94,7 +120,7 @@ export default function BrowsePage() {
                     disabled={loadingMore}
                     className="px-4 py-2 text-sm rounded border hover:bg-muted transition-colors disabled:opacity-50"
                   >
-                    {loadingMore ? 'Loading…' : 'Load more'}
+                    {loadingMore ? 'Зарежда…' : 'Зареди още'}
                   </button>
                 </div>
               )}

@@ -16,14 +16,14 @@ export function SourceToggle({ active, onChange }: Props) {
         size="sm"
         onClick={() => onChange('chitanka')}
       >
-        Chitanka (ebooks)
+        Читанка
       </Button>
       <Button
         variant={active === 'gramofonche' ? 'default' : 'outline'}
         size="sm"
         onClick={() => onChange('gramofonche')}
       >
-        Gramofonche (audiobooks)
+        Грамофонче
       </Button>
     </div>
   )

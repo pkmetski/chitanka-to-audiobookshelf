@@ -21,10 +21,10 @@ export function SearchBar({ onSearch }: Props) {
       <Input
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Search books…"
+        placeholder="Търси книги…"
         className="flex-1"
       />
-      <Button type="submit">Search</Button>
+      <Button type="submit">Търси</Button>
     </form>
   )
 }

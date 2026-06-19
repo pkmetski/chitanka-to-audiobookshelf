@@ -37,7 +37,7 @@ export function DetailPanel({ book }: Props) {
   const [description, setDescription] = useState('')
   const [genres, setGenres] = useState('')
   const [year, setYear] = useState('')
-  const [language, setLanguage] = useState('Bulgarian')
+  const [language, setLanguage] = useState('Български')
   const [seriesName, setSeriesName] = useState('')
   const [seriesSequence, setSeriesSequence] = useState('')
 
@@ -66,14 +66,14 @@ export function DetailPanel({ book }: Props) {
         setDescription(detailData.description)
         setGenres(detailData.genres.join(', '))
         setYear(detailData.year)
-        setLanguage(('language' in detailData && detailData.language) ? detailData.language : 'Bulgarian')
+        setLanguage(('language' in detailData && detailData.language) ? detailData.language : 'Български')
         setSeriesName(('series' in detailData && detailData.series?.name) ? detailData.series.name : '')
         setSeriesSequence(('series' in detailData && detailData.series?.sequence) ? detailData.series.sequence : '')
         setLibraries(libData.libraries ?? [])
         if (libData.libraries?.length) {
           const defaultName = book.site === 'gramofonche' ? 'fairy tales' : 'books'
           const defaultLib =
-            libData.libraries.find((l) => l.name.toLowerCase() === defaultName) ??
+            libData.libraries.find((l) => l.name?.toLowerCase() === defaultName) ??
             libData.libraries[0]
           setLibraryId(defaultLib.id)
         }
@@ -83,7 +83,7 @@ export function DetailPanel({ book }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book.url, settingsLoaded])
 
-  if (loading) return <p className="text-sm text-muted-foreground p-4">Loading…</p>
+  if (loading) return <p className="text-sm text-muted-foreground p-4">Зарежда…</p>
   if (error) return <p className="text-sm text-destructive p-4">{error}</p>
   if (!detail) return null
 
@@ -118,37 +118,37 @@ export function DetailPanel({ book }: Props) {
         {book.url}
       </a>
 
-      <Field label="Title" value={title} onChange={setTitle} />
-      <Field label="Author(s)" value={authors} onChange={setAuthors} hint="comma-separated" />
+      <Field label="Заглавие" value={title} onChange={setTitle} />
+      <Field label="Автор(и)" value={authors} onChange={setAuthors} hint="разделени със запетая" />
       {detail.site === 'gramofonche' && (
-        <Field label="Narrator(s)" value={narrators} onChange={setNarrators} hint="comma-separated" />
+        <Field label="Разказвач(и)" value={narrators} onChange={setNarrators} hint="разделени със запетая" />
       )}
-      <Field label="Description" value={description} onChange={setDescription} textarea />
-      <Field label="Genres" value={genres} onChange={setGenres} hint="comma-separated" />
-      <Field label="Year" value={year} onChange={setYear} />
+      <Field label="Описание" value={description} onChange={setDescription} textarea />
+      <Field label="Жанрове" value={genres} onChange={setGenres} hint="разделени със запетая" />
+      <Field label="Година" value={year} onChange={setYear} />
       {detail.site === 'gramofonche' && detail.duration && (
         <div>
-          <Label className="text-xs text-muted-foreground">Duration</Label>
+          <Label className="text-xs text-muted-foreground">Продължителност</Label>
           <p className="text-sm">{detail.duration}</p>
         </div>
       )}
       {detail.site === 'chitanka' && (
         <>
-          <Field label="Series" value={seriesName} onChange={setSeriesName} />
-          <Field label="Series #" value={seriesSequence} onChange={setSeriesSequence} />
-          <Field label="Language" value={language} onChange={setLanguage} />
+          <Field label="Поредица" value={seriesName} onChange={setSeriesName} />
+          <Field label="Поредица №" value={seriesSequence} onChange={setSeriesSequence} />
+          <Field label="Език" value={language} onChange={setLanguage} />
         </>
       )}
 
       <div>
-        <Label>Library</Label>
+        <Label>Библиотека</Label>
         <Select
           value={libraryId}
           onValueChange={(v) => setLibraryId(v ?? '')}
           items={libraries.map((lib) => ({ value: lib.id, label: lib.name }))}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Choose library…" />
+            <SelectValue placeholder="Изберете библиотека…" />
           </SelectTrigger>
           <SelectContent>
             {libraries.map((lib) => (
@@ -162,7 +162,7 @@ export function DetailPanel({ book }: Props) {
 
       {uploadState.status === 'idle' ? (
         <Button className="w-full" disabled={!libraryId} onClick={handleUpload}>
-          Upload to Audiobookshelf
+          Качи в Audiobookshelf
         </Button>
       ) : (
         <UploadProgress state={uploadState} onReset={resetUpload} />
@@ -189,7 +189,7 @@ function Field({
       <Label>{label}{hint && <span className="text-muted-foreground text-xs ml-1">({hint})</span>}</Label>
       {textarea ? (
         <textarea
-          className="w-full border rounded px-3 py-2 text-sm min-h-[80px] resize-y Bulgarian-background"
+          className="w-full border rounded px-3 py-2 text-sm min-h-[80px] resize-y bg-background"
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
