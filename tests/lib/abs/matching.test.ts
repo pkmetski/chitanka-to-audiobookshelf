@@ -92,6 +92,26 @@ describe('isExistingInAbs — concatenated author in ABS (no spaces)', () => {
   })
 })
 
+describe('isExistingInAbs — multi-author candidate list', () => {
+  // Gramofonche listings split "Шехерезада, реж. Мария Нанчева" into two author entries.
+  // If ABS stored only the narrator/director as author, matching on the first candidate
+  // author ("Шехерезада") would fail. The fix: try each candidate author.
+  it('matches via second candidate author when ABS only has the narrator', () => {
+    const map = buildAbsTitleMap([{ title: 'Маруф обущарят', author: 'Мария Нанчева', durationSecs: 3120 }])
+    expect(isExistingInAbs('Маруф обущарят', ['Шехерезада', 'реж. Мария Нанчева'], map, 52)).toBe(true)
+  })
+
+  it('matches via first candidate author when it is the stored ABS author', () => {
+    const map = buildAbsTitleMap([{ title: 'Маруф обущарят', author: 'Шехерезада', durationSecs: 3120 }])
+    expect(isExistingInAbs('Маруф обущарят', ['Шехерезада', 'реж. Мария Нанчева'], map, 52)).toBe(true)
+  })
+
+  it('does NOT match when neither candidate author relates to the ABS author', () => {
+    const map = buildAbsTitleMap([{ title: 'Маруф обущарят', author: 'Иван Вазов', durationSecs: 3120 }])
+    expect(isExistingInAbs('Маруф обущарят', ['Шехерезада', 'реж. Мария Нанчева'], map, 52)).toBe(false)
+  })
+})
+
 describe('isExistingInAbs — Balkanton suffix in ABS titles', () => {
   it('matches when ABS title has extra :Author :Label suffix and authors agree', () => {
     const map = buildAbsTitleMap([{ title: 'Винету и Поразяващата ръка :К.Май :БалканТон', author: 'Карл Май' }])

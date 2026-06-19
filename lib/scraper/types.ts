@@ -49,6 +49,7 @@ export interface GramofoncheDetail {
   narrators: string[]
   description: string
   genres: string[]
+  language: string
   year: string
   duration: string
   coverUrl: string | null

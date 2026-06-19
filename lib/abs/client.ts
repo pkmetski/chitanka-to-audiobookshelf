@@ -275,6 +275,23 @@ export async function updateAbsItemMetadata(
 }
 
 /**
+ * Mark a library item as owned for the current user.
+ * ABS API: PATCH /api/me/progress/:libraryItemId with { isOwned: true }
+ */
+export async function markAbsItemAsOwned(
+  absUrl: string,
+  token: string,
+  itemId: string,
+): Promise<void> {
+  const res = await fetch(`${normalizeUrl(absUrl)}/api/me/progress/${itemId}`, {
+    method: 'PATCH',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ isOwned: true }),
+  })
+  if (!res.ok) throw new Error(`ABS mark-owned failed: ${res.status}`)
+}
+
+/**
  * Set a cover image on an ABS library item from a remote URL.
  *
  * ABS API: POST /api/items/:id/cover

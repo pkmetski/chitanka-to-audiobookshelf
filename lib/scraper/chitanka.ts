@@ -164,8 +164,7 @@ export function parseDetailPage(html: string, pageUrl: string): ChitankaDetail {
     }
   })
 
-  // Language — not reliably labeled in HTML; use empty string
-  const language = ''
+  const language = 'Bulgarian'
 
   // Cover image — prefer the larger one in the detail tab (.cover.thumbnail img)
   // The detail tab has .cover.thumbnail with itemprop="image"

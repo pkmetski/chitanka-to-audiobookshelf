@@ -187,6 +187,7 @@ export function parseDetailPage(html: string, pageUrl: string): GramofoncheDetai
     narrators,
     description,
     genres,
+    language: 'Bulgarian',
     year,
     duration,
     coverUrl,
