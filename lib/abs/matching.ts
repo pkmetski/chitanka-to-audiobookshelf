@@ -9,7 +9,7 @@ export function normalizeTitle(s: string): string {
 }
 
 export function buildAbsTitleSet(items: { title: string }[]): Set<string> {
-  return new Set(items.map(item => normalizeTitle(item.title)))
+  return new Set(items.filter(item => item.title).map(item => normalizeTitle(item.title)))
 }
 
 export function isExistingInAbs(candidateTitle: string, absSet: Set<string>): boolean {

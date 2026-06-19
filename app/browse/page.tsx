@@ -20,6 +20,7 @@ export default function BrowsePage() {
   const [error, setError] = useState<string | null>(null)
   const [selectedBook, setSelectedBook] = useState<BookSummary | null>(null)
   const [absItems, setAbsItems] = useState<Set<string> | null>(null)
+  const [absStatus, setAbsStatus] = useState<string | null>(null)
 
   async function loadResults(url: string, append = false) {
     if (append) setLoadingMore(true)
@@ -64,10 +65,15 @@ export default function BrowsePage() {
 
   useEffect(() => {
     if (!loaded || !settings.absUrl || !settings.absToken) return
+    setAbsStatus('loading')
     fetch('/api/abs/items', { headers: absHeaders() })
-      .then(res => res.ok ? res.json() : Promise.reject())
-      .then(data => setAbsItems(buildAbsTitleSet(data.items)))
-      .catch(() => {})
+      .then(res => res.ok ? res.json() : res.json().then(e => Promise.reject(e?.error ?? `HTTP ${res.status}`)))
+      .then(data => {
+        const set = buildAbsTitleSet(data.items)
+        setAbsItems(set)
+        setAbsStatus(`${set.size} ABS titles loaded`)
+      })
+      .catch((err) => setAbsStatus(`ABS: ${err}`))
   }, [loaded, settings.absUrl, settings.absToken])
 
   function handleSiteChange(next: Site) {
@@ -92,6 +98,9 @@ export default function BrowsePage() {
         </div>
         {error && (
           <p className="text-sm text-destructive px-4">{error}</p>
+        )}
+        {absStatus && (
+          <p className="text-xs text-muted-foreground px-4 py-1">{absStatus}</p>
         )}
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
