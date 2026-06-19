@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# chitanka-to-audiobookshelf
 
-## Getting Started
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/pkmetski)
 
-First, run the development server:
+Уеб приложение за разглеждане и качване на книги от две български дигитални библиотеки — [Читанка](https://chitanka.info) (електронни книги) и [Грамофонче](https://gramofonche.chitanka.info) (аудиокниги) — директно в собствен [Audiobookshelf](https://www.audiobookshelf.org/) сървър.
+
+## Функции
+
+### Разглеждане и търсене
+
+- Превключване между Читанка и Грамофонче
+- Пълнотекстово търсене в двата източника
+- Навигация по категории в Читанка: нови добавки, по автор (А–Я), жанрове
+- Категории в Грамофонче: Приказки, Песнички, За Заголели
+- Поредично зареждане на резултати
+
+### Преглед и редактиране на метаданни
+
+- Заглавие, автори, описание, жанрове, година
+- Серия и номер в серията (електронни книги)
+- Разказвачи и продължителност (аудиокниги)
+- Избор на целева библиотека в Audiobookshelf
+
+### Качване в Audiobookshelf
+
+- Показване на прогреса стъпка по стъпка в реално време
+- Инжектиране на метаданни за серия директно в EPUB файла
+- Групиране на множество MP3 файлове като единна аудиокнига
+- Автоматично задаване на корица
+- Повторно прилагане на метаданни след автоматичното сканиране на библиотеката
+
+### Настройки
+
+- Адрес на Audiobookshelf сървъра и API токен
+- Бутон за тестване на връзката
+
+## Начало
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Отворете [http://localhost:3000](http://localhost:3000) в браузъра. Преди да качвате, отидете в **Настройки** и въведете адреса и токена на вашия Audiobookshelf сървър.
