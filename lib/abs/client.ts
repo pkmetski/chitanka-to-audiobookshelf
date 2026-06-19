@@ -1,5 +1,99 @@
 import { readFile } from 'fs/promises'
+import { randomBytes } from 'crypto'
+import { request as httpRequest } from 'http'
+import { request as httpsRequest } from 'https'
 import type { AbsLibrary, AbsLibraryItem, AbsUploadMetadata, AbsUploadResult } from './types'
+
+type MultipartEntry =
+  | { kind: 'field'; name: string; value: string }
+  | { kind: 'file'; name: string; filename: string; contentType: string; buffer: Buffer }
+
+// Uses Node.js http module (not fetch) so we can read the response body even when
+// ABS closes the connection before we finish writing the request body. Builds the
+// multipart body manually to avoid relying on how Node.js serialises FormData.
+async function postMultipart(
+  url: string,
+  authToken: string,
+  entries: MultipartEntry[],
+): Promise<{ status: number; body: string }> {
+  const boundary = 'ABS' + randomBytes(16).toString('hex')
+  const CRLF = '\r\n'
+  const parts: Buffer[] = []
+  for (const entry of entries) {
+    if (entry.kind === 'field') {
+      parts.push(Buffer.from(
+        `--${boundary}${CRLF}` +
+        `Content-Disposition: form-data; name="${entry.name}"${CRLF}` +
+        CRLF +
+        `${entry.value}${CRLF}`,
+        'utf8',
+      ))
+    } else {
+      // Raw UTF-8 bytes in filename= — same as what Node.js FormData sends.
+      // RFC 5987 (filename*=) is not reliably supported by all busboy versions.
+      parts.push(Buffer.from(
+        `--${boundary}${CRLF}` +
+        `Content-Disposition: form-data; name="${entry.name}"; filename="${entry.filename}"${CRLF}` +
+        `Content-Type: ${entry.contentType}${CRLF}` +
+        CRLF,
+        'utf8',
+      ))
+      parts.push(entry.buffer)
+      parts.push(Buffer.from(CRLF, 'utf8'))
+    }
+  }
+  parts.push(Buffer.from(`--${boundary}--${CRLF}`, 'utf8'))
+
+  const bodyBuf = Buffer.concat(parts)
+  const contentType = `multipart/form-data; boundary=${boundary}`
+
+  return new Promise((resolve, reject) => {
+    // responseStarted is set as soon as ABS sends response headers. After that,
+    // socket write errors (ABS closed connection while we flush the upload body)
+    // are expected and ignored — res 'end' will still resolve the promise.
+    let responseStarted = false
+
+    const parsed = new URL(url)
+    const reqFn = parsed.protocol === 'https:' ? httpsRequest : httpRequest
+    const req = reqFn(
+      {
+        hostname: parsed.hostname,
+        port: parsed.port || (parsed.protocol === 'https:' ? '443' : '80'),
+        path: parsed.pathname + parsed.search,
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': contentType,
+          'Content-Length': bodyBuf.length,
+        },
+      },
+      (res) => {
+        responseStarted = true
+        const chunks: Buffer[] = []
+        res.on('data', (chunk: Buffer) => chunks.push(chunk))
+        res.on('end', () => {
+          const body = Buffer.concat(chunks).toString()
+          console.log(`[abs upload] status=${res.statusCode} body=${body.slice(0, 500)}`)
+          resolve({ status: res.statusCode ?? 0, body })
+        })
+        res.on('error', () => {
+          // Response stream errored (truncated) — resolve with what we have.
+          const body = Buffer.concat(chunks).toString()
+          console.log(`[abs upload] status=${res.statusCode} body(truncated)=${body.slice(0, 500)}`)
+          resolve({ status: res.statusCode ?? 0, body })
+        })
+      },
+    )
+    req.on('error', (err: Error) => {
+      // After ABS sends its response it closes the TCP connection, which causes
+      // a socket write error on our side while we're still flushing the body.
+      // If response headers already arrived, ignore the write-side error.
+      if (!responseStarted) reject(err)
+    })
+    req.write(bodyBuf)
+    req.end()
+  })
+}
 
 function normalizeUrl(url: string): string {
   const trimmed = url.trim().replace(/\/+$/, '')
@@ -28,13 +122,17 @@ export async function fetchAbsLibraryItems(
   libraryId: string,
   limit = 1000
 ): Promise<AbsLibraryItem[]> {
-  const res = await fetch(
-    `${normalizeUrl(absUrl)}/api/libraries/${libraryId}/items?limit=${limit}`,
-    { headers: authHeaders(token) }
-  )
-  if (!res.ok) return []
-  const data = await res.json()
-  return data.results ?? data.items ?? []
+  try {
+    const res = await fetch(
+      `${normalizeUrl(absUrl)}/api/libraries/${libraryId}/items?limit=${limit}`,
+      { headers: authHeaders(token) }
+    )
+    if (!res.ok) return []
+    const data = await res.json()
+    return data.results ?? data.items ?? []
+  } catch {
+    return []
+  }
 }
 
 /**
@@ -58,26 +156,22 @@ export async function uploadToAbs(
   const folderId = library?.folders?.[0]?.id
   if (!folderId) throw new Error(`No folder found for library ${libraryId}`)
 
-  const form = new FormData()
+  const entries: MultipartEntry[] = []
+  let totalBytes = 0
   for (const file of files) {
     const buffer = await readFile(file.path)
+    totalBytes += buffer.length
     const mimeType = file.name.endsWith('.epub') ? 'application/epub+zip' : 'audio/mpeg'
-    const blob = new Blob([buffer], { type: mimeType })
-    form.append('files', blob, file.name)
+    entries.push({ kind: 'file', name: 'files', filename: file.name, contentType: mimeType, buffer })
   }
-  form.append('library', libraryId)
-  form.append('folder', folderId)
-  form.append('title', metadata.title)
-  form.append('author', metadata.authorName)
-
-  const res = await fetch(`${normalizeUrl(absUrl)}/api/upload`, {
-    method: 'POST',
-    headers: authHeaders(token),
-    body: form,
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`ABS upload failed ${res.status}: ${text}`)
+  entries.push({ kind: 'field', name: 'library', value: libraryId })
+  entries.push({ kind: 'field', name: 'folder', value: folderId })
+  entries.push({ kind: 'field', name: 'title', value: metadata.title })
+  entries.push({ kind: 'field', name: 'author', value: metadata.authorName })
+  console.log(`[abs upload] ${files.length} file(s), ${totalBytes} bytes → ${normalizeUrl(absUrl)}/api/upload`)
+  const res = await postMultipart(`${normalizeUrl(absUrl)}/api/upload`, token, entries)
+  if (res.status !== 200) {
+    throw new Error(`ABS upload failed ${res.status}: ${res.body.slice(0, 500)}`)
   }
   return { id: '' }
 }
