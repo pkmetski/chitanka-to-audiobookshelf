@@ -8,7 +8,7 @@ import { ResultsGrid } from '@/components/results-grid'
 import type { BookSummary, Site } from '@/lib/scraper/types'
 import { DetailPanel } from '@/components/detail-panel'
 import { useSettings } from '@/hooks/use-settings'
-import { buildAbsTitleSet } from '@/lib/abs/matching'
+import { buildAbsTitleSet, isExistingInAbs } from '@/lib/abs/matching'
 
 export default function BrowsePage() {
   const { settings, absHeaders, loaded } = useSettings()
@@ -21,6 +21,7 @@ export default function BrowsePage() {
   const [selectedBook, setSelectedBook] = useState<BookSummary | null>(null)
   const [absItems, setAbsItems] = useState<Set<string> | null>(null)
   const [absStatus, setAbsStatus] = useState<string | null>(null)
+  const [hideOwned, setHideOwned] = useState(false)
 
   async function loadResults(url: string, append = false) {
     if (append) setLoadingMore(true)
@@ -64,7 +65,11 @@ export default function BrowsePage() {
   }, [])
 
   useEffect(() => {
-    if (!loaded || !settings.absUrl || !settings.absToken) return
+    if (!loaded) return
+    if (!settings.absUrl || !settings.absToken) {
+      setAbsStatus('ABS not configured')
+      return
+    }
     setAbsStatus('loading')
     fetch('/api/abs/items', { headers: absHeaders() })
       .then(res => res.ok ? res.json() : res.json().then(e => Promise.reject(e?.error ?? `HTTP ${res.status}`)))
@@ -95,6 +100,14 @@ export default function BrowsePage() {
         <div className="p-4 border-b flex flex-col gap-3 sm:flex-row sm:items-center">
           <SourceToggle active={site} onChange={handleSiteChange} />
           <SearchBar onSearch={handleSearch} />
+          {absItems && (
+            <button
+              onClick={() => setHideOwned(h => !h)}
+              className={`shrink-0 text-xs px-2 py-1 rounded border transition-colors ${hideOwned ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted'}`}
+            >
+              {hideOwned ? 'Show owned' : 'Hide owned'}
+            </button>
+          )}
         </div>
         {error && (
           <p className="text-sm text-destructive px-4">{error}</p>
@@ -107,7 +120,11 @@ export default function BrowsePage() {
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : (
             <>
-              <ResultsGrid items={results} onSelect={setSelectedBook} absItems={absItems} />
+              <ResultsGrid
+                items={hideOwned && absItems ? results.filter(b => !isExistingInAbs(b.title, absItems)) : results}
+                onSelect={setSelectedBook}
+                absItems={absItems}
+              />
               {nextPagePath && (
                 <div className="mt-4 flex justify-center">
                   <button
