@@ -17,7 +17,7 @@ export function ResultsGrid({ items, onSelect, absItems }: Props) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
       {items.map((book) => {
-        const isExisting = !!absItems && isExistingInAbs(book.title, absItems)
+        const isExisting = !!absItems && isExistingInAbs(book.title, book.authors, absItems)
         return <BookCard key={book.url} book={book} onClick={onSelect} isExisting={isExisting} />
       })}
     </div>

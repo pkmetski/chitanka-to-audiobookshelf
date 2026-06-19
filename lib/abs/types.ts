@@ -30,6 +30,7 @@ export interface AbsLibraryItem {
   media: {
     metadata: {
       title: string
+      authors?: { name: string }[]
     }
   }
   addedAt: number

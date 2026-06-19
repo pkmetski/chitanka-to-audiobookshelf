@@ -121,7 +121,7 @@ export default function BrowsePage() {
           ) : (
             <>
               <ResultsGrid
-                items={hideOwned && absItems ? results.filter(b => !isExistingInAbs(b.title, absItems)) : results}
+                items={hideOwned && absItems ? results.filter(b => !isExistingInAbs(b.title, b.authors, absItems)) : results}
                 onSelect={setSelectedBook}
                 absItems={absItems}
               />

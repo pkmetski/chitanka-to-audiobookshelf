@@ -15,7 +15,12 @@ export async function GET(req: Request) {
       libraries.map(lib => fetchAbsLibraryItems(absUrl, absToken, lib.id))
     )
     const items = results.flatMap(r => (r.status === 'fulfilled' ? r.value : []))
-    return NextResponse.json({ items: items.map(item => ({ title: item.media.metadata.title })) })
+    return NextResponse.json({
+      items: items.map(item => ({
+        title: item.media.metadata.title,
+        author: item.media.metadata.authors?.[0]?.name ?? '',
+      })),
+    })
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
