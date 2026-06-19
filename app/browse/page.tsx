@@ -7,8 +7,11 @@ import { CategoryNav } from '@/components/category-nav'
 import { ResultsGrid } from '@/components/results-grid'
 import type { BookSummary, Site } from '@/lib/scraper/types'
 import { DetailPanel } from '@/components/detail-panel'
+import { useSettings } from '@/hooks/use-settings'
+import { buildAbsTitleSet } from '@/lib/abs/matching'
 
 export default function BrowsePage() {
+  const { settings, absHeaders, loaded } = useSettings()
   const [site, setSite] = useState<Site>('chitanka')
   const [results, setResults] = useState<BookSummary[]>([])
   const [nextPagePath, setNextPagePath] = useState<string | null>(null)
@@ -16,6 +19,7 @@ export default function BrowsePage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedBook, setSelectedBook] = useState<BookSummary | null>(null)
+  const [absItems, setAbsItems] = useState<Set<string> | null>(null)
 
   async function loadResults(url: string, append = false) {
     if (append) setLoadingMore(true)
@@ -58,6 +62,14 @@ export default function BrowsePage() {
     loadResults(`/api/scrape/browse?site=chitanka&path=/new`)
   }, [])
 
+  useEffect(() => {
+    if (!loaded || !settings.absUrl || !settings.absToken) return
+    fetch('/api/abs/items', { headers: absHeaders() })
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then(data => setAbsItems(buildAbsTitleSet(data.items)))
+      .catch(() => {})
+  }, [loaded, settings.absUrl, settings.absToken])
+
   function handleSiteChange(next: Site) {
     setSite(next)
     setResults([])
@@ -86,7 +98,7 @@ export default function BrowsePage() {
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : (
             <>
-              <ResultsGrid items={results} onSelect={setSelectedBook} />
+              <ResultsGrid items={results} onSelect={setSelectedBook} absItems={absItems} />
               {nextPagePath && (
                 <div className="mt-4 flex justify-center">
                   <button

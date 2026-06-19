@@ -22,6 +22,21 @@ export async function fetchAbsLibraries(absUrl: string, token: string): Promise<
   return data.libraries as AbsLibrary[]
 }
 
+export async function fetchAbsLibraryItems(
+  absUrl: string,
+  token: string,
+  libraryId: string,
+  limit = 1000
+): Promise<AbsLibraryItem[]> {
+  const res = await fetch(
+    `${normalizeUrl(absUrl)}/api/libraries/${libraryId}/items?limit=${limit}`,
+    { headers: authHeaders(token) }
+  )
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.results ?? data.items ?? []
+}
+
 /**
  * Upload a file to Audiobookshelf via POST /api/upload.
  *
