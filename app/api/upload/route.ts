@@ -51,6 +51,8 @@ export async function POST(req: Request) {
           .replace(/^_+|_+$/g, '')
           .slice(0, 80) || 'book'
 
+        if (!downloads.length) throw new Error('No download links found on this page.')
+
         send({ status: 'downloading', message: `Downloading ${detail.format.toUpperCase()} file${isMultiPart ? `s (${downloads.length})` : ''}…` })
 
         dir = await mkdtemp(join(tmpdir(), 'chitanka-'))
@@ -92,16 +94,13 @@ export async function POST(req: Request) {
           series: 'series' in detail && detail.series ? detail.series : undefined,
         }
 
-        // Step 2: Upload all files sequentially — no polling between uploads
+        // Step 2: Upload all files in a single request so ABS groups them into one item
+        send({ status: 'uploading', message: `Uploading to Audiobookshelf…` })
         const uploadStartMs = Date.now()
-        for (const [i, file] of filesToUpload.entries()) {
-          const fileLabel = isMultiPart ? ` (${i + 1}/${filesToUpload.length}: ${file.name})` : ''
-          send({ status: 'uploading', message: `Uploading to Audiobookshelf${fileLabel}…` })
-          await uploadToAbs(absUrl, absToken, libraryId, [file], metadata)
-        }
+        await uploadToAbs(absUrl, absToken, libraryId, filesToUpload, metadata)
 
-        // Step 3: Poll until all uploaded items appear in the library (up to 30s)
-        const expectedCount = filesToUpload.length
+        // Step 3: Poll until the uploaded item appears in the library (up to 30s)
+        const expectedCount = 1
         let newItems: AbsLibraryItem[] = []
         for (let attempt = 0; attempt < 30 && newItems.length < expectedCount; attempt++) {
           if (attempt > 0) await new Promise(r => setTimeout(r, 1000))
@@ -147,13 +146,13 @@ export async function POST(req: Request) {
           }
         }
 
-        const count = filesToUpload.length
-        const idList = newItems.length ? ` (ids: ${newItems.map(i => i.id).join(', ')})` : ''
+        const fileCount = filesToUpload.length
+        const idList = newItems.length ? ` (id: ${newItems[0].id})` : ''
         send({
           status: 'done',
-          message: newItems.length === count
-            ? `Done! ${count} file${count > 1 ? 's' : ''} uploaded${idList}.`
-            : `Uploaded ${count} file${count > 1 ? 's' : ''} but ABS only indexed ${newItems.length} — check your library type and trigger a manual scan.`,
+          message: newItems.length >= 1
+            ? `Done! ${fileCount} file${fileCount > 1 ? 's' : ''} uploaded${idList}.`
+            : `Uploaded ${fileCount} file${fileCount > 1 ? 's' : ''} but ABS did not index it — check your library type and trigger a manual scan.`,
         })
       } catch (err) {
         send({ status: 'error', message: 'Upload failed', error: String(err) })
