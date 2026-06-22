@@ -66,9 +66,18 @@ export default function BrowsePage() {
   useEffect(() => {
     if (!loaded) return
     if (!settings.absUrl || !settings.absToken) return
-    fetch('/api/abs/items', { headers: absHeaders() })
+    const debugMode = new URLSearchParams(window.location.search).has('debug')
+    const headers = absHeaders()
+    if (debugMode) headers['x-debug'] = 'true'
+    fetch('/api/abs/items', { headers })
       .then(res => res.ok ? res.json() : res.json().then(e => Promise.reject(e?.error ?? `HTTP ${res.status}`)))
-      .then(data => setAbsItems(buildAbsTitleMap(data.items)))
+      .then(data => {
+        if (debugMode) {
+          console.log('[DEBUG] ABS Items received:', data.items)
+          console.log('[DEBUG] Building title map from', data.items.length, 'items')
+        }
+        setAbsItems(buildAbsTitleMap(data.items))
+      })
       .catch(() => { /* ABS unavailable — detection stays off */ })
   }, [loaded, settings.absUrl, settings.absToken])
 
