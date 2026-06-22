@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import type { BookDetail } from '@/lib/scraper/types'
 
 export type UploadStatus = 'idle' | 'downloading' | 'uploading' | 'cover' | 'finalizing' | 'done' | 'error'
@@ -13,15 +13,21 @@ export interface UploadState {
 
 export function useSseUpload() {
   const [state, setState] = useState<UploadState>({ status: 'idle', message: '' })
+  const abortRef = useRef<AbortController | null>(null)
 
   const startUpload = useCallback(
     (detail: BookDetail, libraryId: string, absHeaders: Record<string, string>) => {
+      abortRef.current?.abort()
+      const controller = new AbortController()
+      abortRef.current = controller
+
       setState({ status: 'downloading', message: 'Starting…' })
 
       fetch('/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...absHeaders },
         body: JSON.stringify({ detail, libraryId }),
+        signal: controller.signal,
       })
         .then(async (res) => {
           if (!res.body) throw new Error('No response body')
@@ -44,7 +50,8 @@ export function useSseUpload() {
             }
           }
         })
-        .catch((err) => {
+        .catch((err: unknown) => {
+          if (err instanceof DOMException && err.name === 'AbortError') return
           setState({ status: 'error', message: 'Upload failed', error: String(err) })
         })
     },
@@ -52,6 +59,8 @@ export function useSseUpload() {
   )
 
   function reset() {
+    abortRef.current?.abort()
+    abortRef.current = null
     setState({ status: 'idle', message: '' })
   }
 
