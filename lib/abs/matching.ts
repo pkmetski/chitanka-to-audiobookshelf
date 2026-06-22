@@ -9,6 +9,42 @@ export function normalizeTitle(s: string): string {
     .trim()
 }
 
+// Levenshtein distance for fuzzy title matching.
+// Allows small spelling variations (OCR errors, Unicode variations).
+function levenshteinDistance(a: string, b: string): number {
+  const m = a.length
+  const n = b.length
+  const dp: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0))
+
+  for (let i = 0; i <= m; i++) dp[i][0] = i
+  for (let j = 0; j <= n; j++) dp[0][j] = j
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (a[i - 1] === b[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1]
+      } else {
+        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
+      }
+    }
+  }
+  return dp[m][n]
+}
+
+// Check if two normalized titles are similar enough (fuzzy match).
+// Allows up to 3 character differences but no more than 10% of string length.
+function titlesSimilar(a: string, b: string): boolean {
+  if (a === b) return true
+  const dist = levenshteinDistance(a, b)
+  const maxLen = Math.max(a.length, b.length)
+  const minLen = Math.min(a.length, b.length)
+  // Reject if lengths differ by more than 3 chars (catches "Книга 7" additions)
+  if (Math.abs(a.length - b.length) > 3) return false
+  // Allow up to 3 edits or 10% difference, whichever is smaller
+  const threshold = Math.min(3, Math.ceil(maxLen * 0.10))
+  return dist <= threshold
+}
+
 // Parse a human-readable duration string like "40мин" or "1ч 20мин" to minutes.
 export function parseDurationMins(s?: string): number | undefined {
   if (!s) return undefined
@@ -138,6 +174,21 @@ export function isExistingInAbs(
       if (!keyTitle.startsWith(prefix)) continue
       const keyAuthor = key.slice(sepIdx + SEP.length)
       if (normAuthors.some(na => authorsOverlap(na, keyAuthor))) {
+        if (durationOk(candidateDurationMins, durs)) return true
+      }
+    }
+  }
+
+  // 5. Fuzzy title match: handles small spelling variations (OCR errors, Unicode differences).
+  //    Only apply when there's author confirmation to avoid false positives.
+  //    Check fuzzy title + author matches (exact or overlapping).
+  if (normAuthors.length > 0) {
+    for (const [key, durs] of absMap) {
+      const sepIdx = key.indexOf(SEP)
+      if (sepIdx === -1) continue
+      const keyTitle = key.slice(0, sepIdx)
+      const keyAuthor = key.slice(sepIdx + SEP.length)
+      if (titlesSimilar(normTitle, keyTitle) && normAuthors.some(na => authorsOverlap(na, keyAuthor))) {
         if (durationOk(candidateDurationMins, durs)) return true
       }
     }

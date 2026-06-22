@@ -7,10 +7,11 @@ import { Label } from '@/components/ui/label'
 import { useSettings } from '@/hooks/use-settings'
 
 export function SettingsForm() {
-  const { settings, save } = useSettings()
+  const { settings, save, absHeaders } = useSettings()
   const [absUrl, setAbsUrl] = useState(settings.absUrl)
   const [absToken, setAbsToken] = useState(settings.absToken)
   const [status, setStatus] = useState<string | null>(null)
+  const [isMarking, setIsMarking] = useState(false)
 
   async function testConnection() {
     setStatus('Проверява...')
@@ -29,6 +30,24 @@ export function SettingsForm() {
   function handleSave() {
     save({ absUrl, absToken })
     setStatus('Запазено')
+  }
+
+  async function markAllAsOwned() {
+    setIsMarking(true)
+    setStatus('Отбелязване на всички елементи като притежавани...')
+    try {
+      const res = await fetch('/api/abs/mark-owned-all', {
+        method: 'POST',
+        headers: absHeaders(),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setStatus(`✓ ${data.message}`)
+    } catch (err) {
+      setStatus(`Грешка: ${String(err)}`)
+    } finally {
+      setIsMarking(false)
+    }
   }
 
   return (
@@ -56,6 +75,19 @@ export function SettingsForm() {
         <Button onClick={handleSave}>Запази</Button>
         <Button variant="outline" onClick={testConnection}>
           Тествай връзката
+        </Button>
+      </div>
+      <div className="pt-4 border-t">
+        <p className="text-sm text-muted-foreground mb-2">
+          Ако притежавани елементи не се показват:
+        </p>
+        <Button
+          variant="secondary"
+          onClick={markAllAsOwned}
+          disabled={isMarking || !absUrl || !absToken}
+          size="sm"
+        >
+          {isMarking ? 'Обработка...' : 'Отбелязване на всички като притежавани'}
         </Button>
       </div>
       {status && <p className="text-sm text-muted-foreground">{status}</p>}
