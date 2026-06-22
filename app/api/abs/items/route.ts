@@ -16,11 +16,21 @@ export async function GET(req: Request) {
       libraries.map(lib => fetchAbsLibraryItems(absUrl, absToken, lib.id))
     )
     const items = results.flatMap(r => (r.status === 'fulfilled' ? r.value : []))
-    const mapped = items.map(item => ({
-      title: item.media.metadata.title,
-      author: item.media.metadata.authorName ?? '',
-      durationSecs: item.media.duration ?? undefined,
-    }))
+    const mapped = items.map(item => {
+      // Include narrators in author field for matching
+      const authorParts = []
+      if (item.media.metadata.authorName) authorParts.push(item.media.metadata.authorName)
+      if (item.media.metadata.narrators?.length) {
+        authorParts.push(...item.media.metadata.narrators.map((n: string | { name: string }) =>
+          typeof n === 'string' ? n : n.name
+        ))
+      }
+      return {
+        title: item.media.metadata.title,
+        author: authorParts.join(', '),
+        durationSecs: item.media.duration ?? undefined,
+      }
+    })
 
     if (debug) {
       console.log('[ABS DEBUG] Total items:', items.length)

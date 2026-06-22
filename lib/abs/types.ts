@@ -33,6 +33,7 @@ export interface AbsLibraryItem {
       title: string
       authorName?: string
       authors?: { name: string }[]
+      narrators?: Array<{ name: string } | string>
     }
   }
   addedAt: number
