@@ -15,7 +15,6 @@ export default function BrowsePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { settings, absHeaders, loaded } = useSettings()
-  const [site, setSite] = useState<Site>('chitanka')
   const [results, setResults] = useState<BookSummary[]>([])
   const [nextPagePath, setNextPagePath] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -25,8 +24,9 @@ export default function BrowsePage() {
   const [absItems, setAbsItems] = useState<AbsTitleMap | null>(null)
   const [hideOwned, setHideOwned] = useState(false)
 
-  // Derive selected category from URL params
-  const selectedCategory = searchParams.get('category') || '/new'
+  // Derive site and category from URL params to avoid race conditions
+  const site = (searchParams.get('site') || 'chitanka') as Site
+  const selectedCategory = searchParams.get('category') || (site === 'gramofonche' ? '/prikazki/' : '/new')
 
   async function loadResults(url: string, append = false) {
     if (append) setLoadingMore(true)
@@ -53,6 +53,7 @@ export default function BrowsePage() {
 
   function handleSearch(query: string) {
     const params = new URLSearchParams()
+    params.set('site', site)
     params.set('q', query)
     router.push(`/browse?${params.toString()}`)
     loadResults(`/api/scrape/search?site=${site}&q=${encodeURIComponent(query)}`)
@@ -60,6 +61,7 @@ export default function BrowsePage() {
 
   function handleNavigate(path: string) {
     const params = new URLSearchParams()
+    params.set('site', site)
     params.set('category', path)
     router.push(`/browse?${params.toString()}`)
     loadResults(`/api/scrape/browse?site=${site}&path=${encodeURIComponent(path)}`)
@@ -78,10 +80,11 @@ export default function BrowsePage() {
     if (query) {
       loadResults(`/api/scrape/search?site=${site}&q=${encodeURIComponent(query)}`)
     } else {
-      const categoryPath = category || '/new'
+      const defaultPath = site === 'gramofonche' ? '/prikazki/' : '/new'
+      const categoryPath = category || defaultPath
       loadResults(`/api/scrape/browse?site=${site}&path=${encodeURIComponent(categoryPath)}`)
     }
-  }, [searchParams, site])
+  }, [searchParams])
 
   useEffect(() => {
     if (!loaded) return
@@ -102,11 +105,15 @@ export default function BrowsePage() {
   }, [loaded, settings.absUrl, settings.absToken])
 
   function handleSiteChange(next: Site) {
-    setSite(next)
     setResults([])
     setNextPagePath(null)
     setSelectedBook(null)
-    router.push('/browse')
+    // Navigate to appropriate default for each source
+    const defaultPath = next === 'gramofonche' ? '/prikazki/' : '/new'
+    const params = new URLSearchParams()
+    params.set('site', next)
+    params.set('category', defaultPath)
+    router.push(`/browse?${params.toString()}`)
   }
 
   return (
