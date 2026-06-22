@@ -181,13 +181,11 @@ export async function POST(req: Request) {
               console.error('Metadata patch-2 failed (non-fatal):', metaErr)
             }
           }
-          if (detail.site === 'chitanka') {
-            for (const item of newItems) {
-              try {
-                await markAbsItemAsOwned(absUrl, absToken, item.id)
-              } catch (ownedErr) {
-                console.error('Mark-owned failed (non-fatal):', ownedErr)
-              }
+          for (const item of newItems) {
+            try {
+              await markAbsItemAsOwned(absUrl, absToken, item.id)
+            } catch (ownedErr) {
+              console.error('Mark-owned failed (non-fatal):', ownedErr)
             }
           }
         }
