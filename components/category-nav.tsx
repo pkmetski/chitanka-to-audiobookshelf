@@ -6,9 +6,10 @@ import type { Site, CategoryEntry } from '@/lib/scraper/types'
 interface Props {
   site: Site
   onNavigate: (path: string) => void
+  selectedCategory?: string | null
 }
 
-export function CategoryNav({ site, onNavigate }: Props) {
+export function CategoryNav({ site, onNavigate, selectedCategory }: Props) {
   const [genres, setGenres] = useState<CategoryEntry[]>([])
   const [loadingGenres, setLoadingGenres] = useState(false)
 
@@ -29,7 +30,7 @@ export function CategoryNav({ site, onNavigate }: Props) {
 
       {site === 'chitanka' && (
         <button
-          className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors"
+          className={`w-full text-left text-sm px-2 py-1.5 rounded transition-colors ${selectedCategory === '/new' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
           onClick={() => onNavigate('/new')}
         >
           Нови добавки
@@ -38,7 +39,7 @@ export function CategoryNav({ site, onNavigate }: Props) {
 
       {site === 'chitanka' && (
         <button
-          className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors"
+          className={`w-full text-left text-sm px-2 py-1.5 rounded transition-colors ${selectedCategory === '/authors' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
           onClick={() => onNavigate('/authors')}
         >
           По автор (А–Я)
@@ -54,7 +55,7 @@ export function CategoryNav({ site, onNavigate }: Props) {
           {genres.map((g) => (
             <button
               key={g.path}
-              className="w-full text-left text-sm px-2 py-1 rounded hover:bg-muted transition-colors leading-snug"
+              className={`w-full text-left text-sm px-2 py-1 rounded transition-colors leading-snug ${selectedCategory === g.path ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
               onClick={() => onNavigate(g.path)}
             >
               {g.label}
@@ -72,7 +73,7 @@ export function CategoryNav({ site, onNavigate }: Props) {
           ].map(({ path, label }) => (
             <button
               key={path}
-              className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors"
+              className={`w-full text-left text-sm px-2 py-1.5 rounded transition-colors ${selectedCategory === path ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
               onClick={() => onNavigate(path)}
             >
               {label}
