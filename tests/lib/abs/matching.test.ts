@@ -167,3 +167,34 @@ describe('isExistingInAbs — duration discrimination', () => {
     expect(isExistingInAbs('Котаракът в чизми', ['Шарл Перо'], map, 59)).toBe(false)
   })
 })
+
+describe('isExistingInAbs — fuzzy title match', () => {
+  // Handles small spelling variations: OCR errors, Unicode differences
+  it('matches fuzzy title with exact author when Gramofonche title differs from ABS title', () => {
+    const map = buildAbsTitleMap([{ title: 'Маруф обущарят', author: 'Мария Нанчева', durationSecs: 3120 }])
+    // User's Gramofonche title: "Маруф обушарт" vs ABS title: "Маруф обущарят"
+    expect(isExistingInAbs('Маруф обушарт', ['реж. Мария Нанчева'], map, 52)).toBe(true)
+  })
+
+  it('matches fuzzy title with any overlapping author', () => {
+    const map = buildAbsTitleMap([{ title: 'Маруф обущарят', author: 'Мария Нанчева', durationSecs: 3120 }])
+    // Either author from the source or narrator should match
+    expect(isExistingInAbs('Маруф обушарт', ['Шехерезада', 'реж. Мария Нанчева'], map, 52)).toBe(true)
+  })
+
+  it('rejects fuzzy match when authors do not overlap', () => {
+    const map = buildAbsTitleMap([{ title: 'Маруф обущарят', author: 'Иван Вазов', durationSecs: 3120 }])
+    expect(isExistingInAbs('Маруф обушарт', ['реж. Мария Нанчева'], map, 52)).toBe(false)
+  })
+
+  it('rejects fuzzy match when durations differ significantly', () => {
+    const map = buildAbsTitleMap([{ title: 'Маруф обущарят', author: 'Мария Нанчева', durationSecs: 2400 }])
+    // Duration mismatch: ABS 40мин, candidate 52мин (30% diff > 20% threshold)
+    expect(isExistingInAbs('Маруф обушарт', ['реж. Мария Нанчева'], map, 52)).toBe(false)
+  })
+
+  it('does NOT match fuzzy when title difference is too large', () => {
+    const map = buildAbsTitleMap([{ title: 'Котаракът в чизми', author: 'Шарл Перо' }])
+    expect(isExistingInAbs('Аладин и вълшебната лампа', ['Шарл Перо'], map)).toBe(false)
+  })
+})
