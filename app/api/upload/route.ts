@@ -2,6 +2,7 @@ import { writeFile, mkdtemp, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { uploadToAbs, setAbsCoverFromUrl, findNewLibraryItems, updateAbsItemMetadata, scanAbsLibrary, markAbsItemAsOwned } from '@/lib/abs/client'
+import { stripId3LabelSuffix } from '@/lib/abs/id3'
 import { injectSeriesIntoEpub } from '@/lib/epub/series'
 import type { BookDetail } from '@/lib/scraper/types'
 import type { AbsLibraryItem, AbsUploadMetadata } from '@/lib/abs/types'
@@ -74,8 +75,12 @@ export async function POST(req: Request) {
           if (!fileRes.ok) throw new Error(`Свалянето е неуспешно: ${fileRes.status}`)
           let fileBuffer = Buffer.from(await fileRes.arrayBuffer())
 
+          if (detail.format === 'mp3') {
+            fileBuffer = stripId3LabelSuffix(fileBuffer) as typeof fileBuffer
+          }
+
           if (detail.format === 'epub' && 'series' in detail && detail.series?.name) {
-            fileBuffer = injectSeriesIntoEpub(fileBuffer, detail.series.name, detail.series.sequence)
+            fileBuffer = injectSeriesIntoEpub(fileBuffer, detail.series.name, detail.series.sequence) as typeof fileBuffer
           }
 
           const tempPath = join(dir, filename)
@@ -100,6 +105,7 @@ export async function POST(req: Request) {
         let uploadErr: Error | null = null
         try {
           await uploadToAbs(absUrl, absToken, libraryId, filesToUpload, metadata)
+          console.log('[upload] upload completed successfully')
         } catch (err) {
           // ABS sometimes closes the TCP connection before we can read its response
           // (especially for large multi-track uploads over Tailscale). The upload may
@@ -119,11 +125,24 @@ export async function POST(req: Request) {
         let newItems: AbsLibraryItem[] = []
         for (let attempt = 0; attempt < 30 && newItems.length < expectedCount; attempt++) {
           await new Promise(r => setTimeout(r, 2000))
-          newItems = await findNewLibraryItems(absUrl, absToken, libraryId, uploadStartMs, expectedCount)
+          try {
+            newItems = await findNewLibraryItems(absUrl, absToken, libraryId, uploadStartMs, expectedCount)
+            if (newItems.length > 0) {
+              console.log(`[poll] attempt ${attempt + 1}: found ${newItems.length} item(s)`)
+            }
+          } catch (pollErr) {
+            // ABS can be briefly unreachable after a large upload drops the TCP
+            // connection (Tailscale socket hang-up). Swallow and keep retrying —
+            // the item may still appear once ABS recovers.
+            console.warn(`[poll] attempt ${attempt + 1}: ABS unreachable (${(pollErr as Error).message}), retrying…`)
+          }
         }
 
         // Surface the upload error only if the item never appeared in the library.
-        if (uploadErr && newItems.length === 0) throw uploadErr
+        if (uploadErr && newItems.length === 0) {
+          console.error('[upload] no item found after polling; surfacing upload error:', uploadErr.message)
+          throw uploadErr
+        }
 
         // Step 4: PATCH-1 on all items (best-effort; ABS initial scan may not have run yet)
         for (const item of newItems) {
