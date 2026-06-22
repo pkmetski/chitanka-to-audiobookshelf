@@ -78,10 +78,12 @@ export default function BrowsePage() {
     const query = searchParams.get('q')
 
     if (query) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadResults(`/api/scrape/search?site=${site}&q=${encodeURIComponent(query)}`)
     } else {
       const defaultPath = site === 'gramofonche' ? '/prikazki/' : '/new'
       const categoryPath = category || defaultPath
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadResults(`/api/scrape/browse?site=${site}&path=${encodeURIComponent(categoryPath)}`)
     }
   }, [searchParams])
