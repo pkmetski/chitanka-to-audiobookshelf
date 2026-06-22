@@ -83,7 +83,6 @@ export default function BrowsePage() {
     } else {
       const defaultPath = site === 'gramofonche' ? '/prikazki/' : '/new'
       const categoryPath = category || defaultPath
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadResults(`/api/scrape/browse?site=${site}&path=${encodeURIComponent(categoryPath)}`)
     }
   }, [searchParams])
