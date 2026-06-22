@@ -41,6 +41,11 @@ export function DetailPanel({ book }: Props) {
   const [seriesSequence, setSeriesSequence] = useState('')
 
   useEffect(() => {
+    resetUpload()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book.url])
+
+  useEffect(() => {
     // Wait for localStorage settings to be hydrated before fetching — absHeaders() would be
     // empty on the first render cycle, causing the library fetch to return 400 and an empty selector.
     if (!settingsLoaded) return

@@ -20,6 +20,7 @@
     "form-data": "^4.0.6",
     "lucide-react": "^1.21.0",
     "next": "16.2.9",
+    "node-id3": "^0.2.9",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "shadcn": "^4.11.0",
@@ -28,6 +29,7 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
+    "@rolldown/binding-darwin-arm64": "^1.0.3",
     "@tailwindcss/postcss": "^4",
     "@types/form-data": "^2.5.2",
     "@types/node": "^25",

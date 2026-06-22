@@ -156,22 +156,26 @@ export async function uploadToAbs(
   const folderId = library?.folders?.[0]?.id
   if (!folderId) throw new Error(`No folder found for library ${libraryId}`)
 
-  const entries: MultipartEntry[] = []
-  let totalBytes = 0
+  // ABS rejects multipart requests that contain more than one file (connection reset).
+  // Work around this by uploading each file in a separate request using the same
+  // title form field — ABS puts all files with the same title into the same directory
+  // and groups them into one library item.
+  const url = `${normalizeUrl(absUrl)}/api/upload`
   for (const file of files) {
     const buffer = await readFile(file.path)
-    totalBytes += buffer.length
     const mimeType = file.name.endsWith('.epub') ? 'application/epub+zip' : 'audio/mpeg'
-    entries.push({ kind: 'file', name: 'files', filename: file.name, contentType: mimeType, buffer })
-  }
-  entries.push({ kind: 'field', name: 'library', value: libraryId })
-  entries.push({ kind: 'field', name: 'folder', value: folderId })
-  entries.push({ kind: 'field', name: 'title', value: metadata.title })
-  entries.push({ kind: 'field', name: 'author', value: metadata.authorName })
-  console.log(`[abs upload] ${files.length} file(s), ${totalBytes} bytes → ${normalizeUrl(absUrl)}/api/upload`)
-  const res = await postMultipart(`${normalizeUrl(absUrl)}/api/upload`, token, entries)
-  if (res.status !== 200) {
-    throw new Error(`ABS upload failed ${res.status}: ${res.body.slice(0, 500)}`)
+    const entries: MultipartEntry[] = [
+      { kind: 'file', name: 'files', filename: file.name, contentType: mimeType, buffer },
+      { kind: 'field', name: 'library', value: libraryId },
+      { kind: 'field', name: 'folder', value: folderId },
+      { kind: 'field', name: 'title', value: metadata.title },
+      { kind: 'field', name: 'author', value: metadata.authorName },
+    ]
+    console.log(`[abs upload] ${file.name} (${buffer.length} bytes) → ${url}`)
+    const res = await postMultipart(url, token, entries)
+    if (res.status !== 200) {
+      throw new Error(`ABS upload failed ${res.status}: ${res.body.slice(0, 500)}`)
+    }
   }
   return { id: '' }
 }
