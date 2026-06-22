@@ -29,7 +29,6 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
-    "@rolldown/binding-darwin-arm64": "^1.0.3",
     "@tailwindcss/postcss": "^4",
     "@types/form-data": "^2.5.2",
     "@types/node": "^25",
