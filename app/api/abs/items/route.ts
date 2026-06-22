@@ -17,9 +17,14 @@ export async function GET(req: Request) {
     )
     const items = results.flatMap(r => (r.status === 'fulfilled' ? r.value : []))
     const mapped = items.map(item => {
-      // Include narrators in author field for matching
+      // Combine authors and narrators for matching
+      // ABS GET returns authors as array of {id, name}, not authorName string
       const authorParts = []
-      if (item.media.metadata.authorName) authorParts.push(item.media.metadata.authorName)
+      if (item.media.metadata.authors?.length) {
+        authorParts.push(...item.media.metadata.authors.map((a: { name: string } | string) =>
+          typeof a === 'string' ? a : a.name
+        ))
+      }
       if (item.media.metadata.narrators?.length) {
         authorParts.push(...item.media.metadata.narrators.map((n: string | { name: string }) =>
           typeof n === 'string' ? n : n.name
@@ -37,9 +42,9 @@ export async function GET(req: Request) {
       items.forEach((item, i) => {
         console.log(`[ABS DEBUG] Item ${i + 1}:`)
         console.log(`  Title: ${item.media.metadata.title}`)
-        console.log(`  Author: ${item.media.metadata.authorName ?? '(none)'}`)
+        console.log(`  Authors: ${JSON.stringify(item.media.metadata.authors ?? [])}`)
+        console.log(`  Narrators: ${JSON.stringify(item.media.metadata.narrators ?? [])}`)
         console.log(`  Duration: ${item.media.duration ?? '(none)'} secs`)
-        console.log(`  Raw metadata:`, JSON.stringify(item.media.metadata, null, 2))
       })
     }
 

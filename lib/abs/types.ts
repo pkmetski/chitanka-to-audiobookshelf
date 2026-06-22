@@ -31,9 +31,8 @@ export interface AbsLibraryItem {
     duration?: number
     metadata: {
       title: string
-      authorName?: string
-      authors?: { name: string }[]
-      narrators?: Array<{ name: string } | string>
+      authors?: Array<{ id?: string; name: string } | string>
+      narrators?: Array<{ id?: string; name: string } | string>
     }
   }
   addedAt: number
