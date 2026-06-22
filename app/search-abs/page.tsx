@@ -1,12 +1,22 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useSettings } from '@/hooks/use-settings'
+
+interface AbsAuthor {
+  name?: string
+  id?: string
+}
+
+interface AbsNarrator {
+  name?: string
+  id?: string
+}
 
 interface AbsItem {
   title: string
-  authors: any[]
-  narrators: any[]
+  authors: (string | AbsAuthor)[]
+  narrators: (string | AbsNarrator)[]
   duration?: string
 }
 
@@ -88,7 +98,7 @@ export default function SearchAbsPage() {
                   <p>
                     <strong>Authors:</strong>{' '}
                     {item.authors
-                      .map((a: any) => (typeof a === 'string' ? a : a.name || a.id))
+                      .map((a: string | AbsAuthor) => (typeof a === 'string' ? a : a.name || a.id))
                       .join(', ')}
                   </p>
                 )}
@@ -97,7 +107,7 @@ export default function SearchAbsPage() {
                   <p>
                     <strong>Narrators:</strong>{' '}
                     {item.narrators
-                      .map((n: any) => (typeof n === 'string' ? n : n.name || n.id))
+                      .map((n: string | AbsNarrator) => (typeof n === 'string' ? n : n.name || n.id))
                       .join(', ')}
                   </p>
                 )}

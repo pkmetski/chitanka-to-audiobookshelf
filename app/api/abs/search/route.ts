@@ -21,10 +21,10 @@ export async function GET(req: Request) {
     const filtered = allItems.filter(item => {
       const title = item.media.metadata.title?.toLowerCase() || ''
       const authors = (item.media.metadata.authors || [])
-        .map((a: any) => (typeof a === 'string' ? a : a.name).toLowerCase())
+        .map((a: string | { name: string }) => (typeof a === 'string' ? a : a.name).toLowerCase())
         .join(' ')
       const narrators = (item.media.metadata.narrators || [])
-        .map((n: any) => (typeof n === 'string' ? n : n.name).toLowerCase())
+        .map((n: string | { name: string }) => (typeof n === 'string' ? n : n.name).toLowerCase())
         .join(' ')
 
       return title.includes(query) || authors.includes(query) || narrators.includes(query)

@@ -47,9 +47,10 @@ export default function DebugPage() {
 
   useEffect(() => {
     if (loaded && settings.absUrl && settings.absToken) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchAbsItems()
     }
-  }, [loaded])
+  }, [loaded, settings.absUrl, settings.absToken])
 
   if (!loaded) return <div className="p-4">Зарежда...</div>
 
